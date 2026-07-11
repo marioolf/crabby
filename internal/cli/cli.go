@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -51,6 +52,7 @@ func newRootCmd() *cobra.Command {
 		newPsCmd(),
 		newAttachCmd(),
 		newStartCmd(),
+		newRmCmd(),
 		newDoctorCmd(),
 		newVersionCmd(),
 	)
@@ -274,6 +276,47 @@ func newStartCmd() *cobra.Command {
 			return openSession(cfg, t, p)
 		},
 	}
+}
+
+func newRmCmd() *cobra.Command {
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "rm [project]",
+		Short: "Remove a project from Crabby (does not delete files)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			p, err := resolveProject(args)
+			if err != nil {
+				return err
+			}
+
+			if !yes {
+				fmt.Printf("Remove %q from Crabby? Your files are kept. (y/N): ", p.Name)
+				line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+				if a := strings.TrimSpace(strings.ToLower(line)); a != "y" && a != "yes" {
+					fmt.Println("Cancelled.")
+					return nil
+				}
+			}
+
+			// Stop the session first if it's running, then forget the project.
+			t := tmux.New(cfg.TmuxBinary)
+			if t.Available() && t.HasSession(p.Session) {
+				_ = t.KillSession(p.Session)
+			}
+			if err := project.Remove(p.Name); err != nil {
+				return err
+			}
+			fmt.Printf("Removed %q. Files left untouched — run `crabby init` there to re-add it.\n", p.Name)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip the confirmation prompt")
+	return cmd
 }
 
 func newDoctorCmd() *cobra.Command {

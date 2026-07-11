@@ -100,6 +100,8 @@ inside a session, press F12 to return here
 - Pick another project and you're in a different Claude in one keypress.
 - **n** adds the current directory as a project (see [Packs](#packs)).
 - **x** stops the highlighted session (asks first) — no need to exit Claude.
+- **d** removes the highlighted project from Crabby (asks first). Your files are
+  kept; only Crabby forgets it. Also available as `crabby rm [project]`.
 - **q** quits.
 
 The return key is shown on a small Crabby status bar while you work, so you
@@ -114,6 +116,7 @@ never have to remember it.
 | `crabby ps` | Alias for `crabby`. |
 | `crabby attach [project]` | Open a specific project's session directly. |
 | `crabby start [project]` | Same as attach — launches the session if needed. |
+| `crabby rm [project]` | Remove a project from Crabby (files are kept). |
 | `crabby doctor` | Check that WSL, Ubuntu, tmux, Claude, and crabby are present. |
 | `crabby version` | Print the installed version. |
 

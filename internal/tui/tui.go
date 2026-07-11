@@ -83,13 +83,22 @@ type item struct {
 	hasAct   bool
 }
 
+// confirmKind is which confirmation prompt (if any) is currently showing.
+type confirmKind int
+
+const (
+	confirmNone confirmKind = iota
+	confirmStop
+	confirmRemove
+)
+
 type model struct {
-	tmux       tmux.Client
-	detachKey  string
-	items      []item
-	cursor     int
-	confirming bool // showing "stop this session?" prompt
-	result     Result
+	tmux      tmux.Client
+	detachKey string
+	items     []item
+	cursor    int
+	confirm   confirmKind
+	result    Result
 }
 
 // Run displays the home screen and returns the chosen action.
@@ -134,16 +143,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Confirmation prompt for stopping a session captures all keys.
-	if m.confirming {
-		switch key.String() {
-		case "y", "Y":
-			_ = m.tmux.KillSession(m.items[m.cursor].project.Session)
-			m.confirming = false
+	// A confirmation prompt captures all keys until answered.
+	if m.confirm != confirmNone {
+		if s := key.String(); s == "y" || s == "Y" {
+			p := m.items[m.cursor].project
+			switch m.confirm {
+			case confirmStop:
+				_ = m.tmux.KillSession(p.Session)
+			case confirmRemove:
+				_ = m.tmux.KillSession(p.Session) // stop it first if running
+				_ = project.Remove(p.Name)
+			}
 			m.refresh()
-		default:
-			m.confirming = false
 		}
+		m.confirm = confirmNone
 		return m, nil
 	}
 
@@ -166,7 +179,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "x":
 		if len(m.items) > 0 && m.items[m.cursor].state != session.Stopped {
-			m.confirming = true
+			m.confirm = confirmStop
+		}
+	case "d":
+		if len(m.items) > 0 {
+			m.confirm = confirmRemove
 		}
 	case "enter":
 		if len(m.items) > 0 {
@@ -223,13 +240,17 @@ func (m model) View() string {
 
 	b.WriteString(divider())
 	b.WriteString("\n")
-	if m.confirming {
+	switch m.confirm {
+	case confirmStop:
 		b.WriteString(confirmStyle.Render(fmt.Sprintf("Stop \"%s\"? (y/n)", m.items[m.cursor].project.Name)))
 		return b.String()
+	case confirmRemove:
+		b.WriteString(confirmStyle.Render(fmt.Sprintf("Remove \"%s\" from Crabby? Files are kept. (y/n)", m.items[m.cursor].project.Name)))
+		return b.String()
 	}
-	b.WriteString(helpStyle.Render("enter open   n new   x stop   r refresh   q quit"))
+	b.WriteString(helpStyle.Render("enter open   n new   x stop   d remove"))
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render(fmt.Sprintf("inside a session, press %s to return here", m.detachKey)))
+	b.WriteString(helpStyle.Render(fmt.Sprintf("r refresh   q quit   ·   %s returns from a session", m.detachKey)))
 	return b.String()
 }
 

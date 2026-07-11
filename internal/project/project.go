@@ -94,6 +94,28 @@ func Register(p Project) error {
 	return Save(projects)
 }
 
+// Remove deletes a project from the registry. It does not touch any files on
+// disk. Returns ErrNotFound if no such project is registered.
+func Remove(name string) error {
+	projects, err := Load()
+	if err != nil {
+		return err
+	}
+	out := make([]Project, 0, len(projects))
+	found := false
+	for _, p := range projects {
+		if p.Name == name {
+			found = true
+			continue
+		}
+		out = append(out, p)
+	}
+	if !found {
+		return ErrNotFound
+	}
+	return Save(out)
+}
+
 // Find returns the project with the given name.
 func Find(name string) (Project, error) {
 	projects, err := Load()

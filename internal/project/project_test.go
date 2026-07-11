@@ -52,3 +52,28 @@ func TestFindNotFound(t *testing.T) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
+
+func TestRemove(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	if err := Register(Project{Name: "a", Path: "/a", Session: "crabby_a"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Register(Project{Name: "b", Path: "/b", Session: "crabby_b"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Remove("a"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if _, err := Find("a"); err != ErrNotFound {
+		t.Fatalf("project 'a' still present after Remove")
+	}
+	if _, err := Find("b"); err != nil {
+		t.Fatalf("Remove deleted the wrong project: %v", err)
+	}
+
+	if err := Remove("missing"); err != ErrNotFound {
+		t.Fatalf("Remove(missing) = %v, want ErrNotFound", err)
+	}
+}
