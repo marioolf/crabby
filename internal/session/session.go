@@ -1,0 +1,47 @@
+// Package session maps Crabby projects onto tmux sessions.
+//
+// Each project owns exactly one session named crabby_<project_name>.
+package session
+
+import (
+	"github.com/marioolf/crabby/internal/project"
+	"github.com/marioolf/crabby/internal/tmux"
+)
+
+// State describes what a project's session is currently doing.
+type State string
+
+const (
+	// Running: the session exists and a client is attached to it.
+	Running State = "Running"
+	// Waiting: the session exists but nobody is attached (idle, ready).
+	Waiting State = "Waiting"
+	// Stopped: no session exists for the project.
+	Stopped State = "Stopped"
+)
+
+// Name returns the tmux session name for a project.
+func Name(projectName string) string {
+	return "crabby_" + projectName
+}
+
+// Detect returns the current state of a project's session.
+func Detect(t tmux.Client, p project.Project) State {
+	name := sessionName(p)
+	if !t.HasSession(name) {
+		return Stopped
+	}
+	if t.Attached(name) {
+		return Running
+	}
+	return Waiting
+}
+
+// sessionName returns the stored session name, falling back to the derived one
+// for older registry entries.
+func sessionName(p project.Project) string {
+	if p.Session != "" {
+		return p.Session
+	}
+	return Name(p.Name)
+}
