@@ -2,8 +2,10 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/spf13/cobra"
 
@@ -11,7 +13,6 @@ import (
 	"github.com/marioolf/crabby/internal/doctor"
 	"github.com/marioolf/crabby/internal/initcmd"
 	"github.com/marioolf/crabby/internal/project"
-	"github.com/marioolf/crabby/internal/session"
 	"github.com/marioolf/crabby/internal/tmux"
 	"github.com/marioolf/crabby/internal/tui"
 	"github.com/marioolf/crabby/internal/version"
@@ -29,13 +30,17 @@ func Execute() int {
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "crabby",
-		Short:         "A lightweight workspace manager for Claude Code",
-		Long:          "Crabby prepares projects for Claude Code and lets you manage multiple Claude sessions from one terminal.",
+		Short:         "A workspace manager for Claude Code",
+		Long:          "Crabby manages your Claude Code workspaces. Run it with no arguments to open the home screen, pick a project, and jump straight into Claude.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       version.String(),
+		Args:          cobra.NoArgs,
+		// `crabby` with no subcommand opens the home screen.
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return home()
+		},
 	}
-	// Make `crabby --version` match `crabby version`.
 	root.SetVersionTemplate("Crabby v{{.Version}}\n")
 
 	root.AddCommand(
@@ -47,6 +52,57 @@ func newRootCmd() *cobra.Command {
 		newVersionCmd(),
 	)
 	return root
+}
+
+// home is Crabby's main loop: show the project list, open the chosen session,
+// and — when the user leaves it — return to the list. The user stays inside
+// Crabby the whole time.
+func home() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	t := tmux.New(cfg.TmuxBinary)
+	if !t.Available() {
+		return errTmuxMissing(cfg.TmuxBinary)
+	}
+
+	for {
+		selected, err := tui.Run(t, cfg.DetachKey)
+		if err != nil {
+			return err
+		}
+		if selected == nil {
+			return nil // user quit
+		}
+		if err := openSession(cfg, t, *selected); err != nil {
+			// Stay in the loop; show the problem and wait for acknowledgement
+			// so it isn't lost when the list redraws.
+			fmt.Fprintln(os.Stderr, "\ncrabby:", err)
+			fmt.Fprint(os.Stderr, "\nPress Enter to return to Crabby...")
+			bufio.NewReader(os.Stdin).ReadString('\n')
+		}
+	}
+}
+
+// openSession launches Claude for a project if needed and attaches to it,
+// blocking until the user leaves. Selecting a project is all it takes — a
+// stopped project is started automatically.
+func openSession(cfg config.Config, t tmux.Client, p project.Project) error {
+	if !t.HasSession(p.Session) {
+		if _, err := lookClaude(cfg); err != nil {
+			return err
+		}
+		if err := t.NewSession(p.Session, p.Path, cfg.ClaudeCommand); err != nil {
+			return fmt.Errorf("could not start a session for %q: %w", p.Name, err)
+		}
+		// Show the project name in the status bar, not the command.
+		_ = t.RenameWindow(p.Session, p.Name)
+	}
+	// Best-effort: brand the session and enable the return key. A failure here
+	// only means the status bar is plain, so don't block the attach.
+	_ = t.Configure(cfg.DetachKey)
+	return t.AttachChild(p.Session)
 }
 
 func newVersionCmd() *cobra.Command {
@@ -65,6 +121,7 @@ func newInitCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
 		Short: "Initialize the current project for Claude Code",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -82,32 +139,20 @@ func newInitCmd() *cobra.Command {
 			if len(res.Created) == 0 {
 				fmt.Println("  already initialized (registry updated)")
 			}
-			fmt.Printf("  session %s\n", res.Project.Session)
-			fmt.Println("\nNext: run `crabby start` to launch Claude.")
+			fmt.Println("\nNext: run `crabby` and press Enter on this project to open it.")
 			return nil
 		},
 	}
 }
 
+// newPsCmd keeps `crabby ps` working as an alias for the home screen.
 func newPsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "ps",
-		Short: "List projects and attach to a Claude session",
+		Short: "Open the Crabby home screen (alias for `crabby`)",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.Load()
-			if err != nil {
-				return err
-			}
-			t := tmux.New(cfg.TmuxBinary)
-
-			selected, err := tui.Run(t)
-			if err != nil {
-				return err
-			}
-			if selected == nil {
-				return nil // user quit without choosing
-			}
-			return attach(cfg, *selected)
+			return home()
 		},
 	}
 }
@@ -115,18 +160,22 @@ func newPsCmd() *cobra.Command {
 func newAttachCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "attach [project]",
-		Short: "Attach to a project's Claude session",
+		Short: "Open a project's Claude session directly",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
 				return err
 			}
+			t := tmux.New(cfg.TmuxBinary)
+			if !t.Available() {
+				return errTmuxMissing(cfg.TmuxBinary)
+			}
 			p, err := resolveProject(args)
 			if err != nil {
 				return err
 			}
-			return attach(cfg, p)
+			return openSession(cfg, t, p)
 		},
 	}
 }
@@ -134,29 +183,22 @@ func newAttachCmd() *cobra.Command {
 func newStartCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "start [project]",
-		Short: "Create the session and launch Claude, then attach",
+		Short: "Launch Claude for a project and open it",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
 				return err
 			}
+			t := tmux.New(cfg.TmuxBinary)
+			if !t.Available() {
+				return errTmuxMissing(cfg.TmuxBinary)
+			}
 			p, err := resolveProject(args)
 			if err != nil {
 				return err
 			}
-
-			t := tmux.New(cfg.TmuxBinary)
-			if !t.Available() {
-				return fmt.Errorf("tmux not installed.\n\nInstall it with: sudo apt install tmux")
-			}
-
-			if !t.HasSession(p.Session) {
-				if err := t.NewSession(p.Session, p.Path, cfg.ClaudeCommand); err != nil {
-					return fmt.Errorf("could not create tmux session: %w", err)
-				}
-			}
-			return t.Attach(p.Session)
+			return openSession(cfg, t, p)
 		},
 	}
 }
@@ -165,6 +207,7 @@ func newDoctorCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "doctor",
 		Short: "Check that the environment is ready for Crabby",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
@@ -191,18 +234,16 @@ func newDoctorCmd() *cobra.Command {
 	}
 }
 
-// attach connects the user directly to a project's Claude session, or explains
-// how to start it when the session is not running.
-func attach(cfg config.Config, p project.Project) error {
-	t := tmux.New(cfg.TmuxBinary)
-	if !t.Available() {
-		return fmt.Errorf("tmux not installed.\n\nInstall it with: sudo apt install tmux")
+func errTmuxMissing(binary string) error {
+	return fmt.Errorf("Crabby needs tmux, which was not found (looked for %q).\n\nInstall it with:  sudo apt install tmux", binary)
+}
+
+func lookClaude(cfg config.Config) (string, error) {
+	path, err := exec.LookPath(cfg.ClaudeCommand)
+	if err != nil {
+		return "", fmt.Errorf("Claude Code not found (looked for %q).\n\nInstall it from https://claude.com/claude-code, or set claude_command in ~/.config/crabby/config.yaml", cfg.ClaudeCommand)
 	}
-	if !t.HasSession(p.Session) {
-		return fmt.Errorf("session %q is not running (state: %s).\n\nRun:\n  crabby start %s",
-			p.Session, session.Stopped, p.Name)
-	}
-	return t.Attach(p.Session)
+	return path, nil
 }
 
 // resolveProject finds the project either from an explicit name argument or

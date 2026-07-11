@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-11
+
+### Changed
+
+- `crabby` with no arguments now opens the home screen (the TUI). `crabby ps`
+  remains as an alias.
+- The home screen is a loop: pick a project → work in Claude → leave → you land
+  back on the list automatically, ready to pick another. No shell commands, no
+  session names to remember.
+- Selecting a project starts its session if it isn't running yet, so opening a
+  project is always a single keypress.
+- The TUI shows more, minimally: project name, session state (with clearer
+  colors), path, git branch, and time since last activity.
+- README reframed around "a workspace manager for Claude Code"; tmux is
+  described only as an implementation detail.
+
+### Added
+
+- Leave a session and return to Crabby with a single key press (**F12** by
+  default) — no tmux shortcuts. The key is configurable via `detach_key` in
+  `~/.config/crabby/config.yaml`.
+- Sessions show a small Crabby-branded status bar with the current project and a
+  reminder of the return key, so tmux stays out of sight.
+- Crabby runs on its own dedicated tmux server (socket `crabby`), isolated from
+  any tmux the user runs themselves.
+
 ## [0.1.1] - 2026-07-11
 
 ### Fixed
@@ -43,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-command installers for Windows (`install.ps1`) and Linux/WSL (`install.sh`).
 - GitHub Actions release workflow producing Linux (amd64/arm64) and Windows (amd64/arm64) assets.
 
-[Unreleased]: https://github.com/marioolf/crabby/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/marioolf/crabby/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/marioolf/crabby/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/marioolf/crabby/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/marioolf/crabby/releases/tag/v0.1.0

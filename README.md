@@ -1,41 +1,35 @@
 # 🦀 Crabby
 
-A lightweight workspace manager for Claude Code.
+**A workspace manager for Claude Code.**
 
-Crabby has two goals only:
+Run `crabby`, pick a project, and you're in Claude. Leave the session with a
+single key and you're back on the project list, ready to jump into the next one.
+Crabby is the home screen for all your Claude Code work.
 
-1. **Prepare projects** so they are immediately ready to work with Claude Code.
-2. **Manage multiple Claude Code sessions** from a single terminal.
+```
+crabby                 ← your projects
+   │  Enter
+   ▼
+Claude (Project A)     ← work
+   │  F12
+   ▼
+crabby                 ← back on the list
+   │  Enter
+   ▼
+Claude (Project B)     ← switch, instantly
+```
 
-It is intentionally small. Crabby is *not* a Git client, a tmux replacement, a
-project manager, an IDE, or an AI orchestrator.
+No shell commands between sessions. No session names to remember. You never
+leave Crabby.
 
 ## Philosophy
 
 > Make working with multiple Claude Code sessions effortless.
 
-Crabby is opinionated. It assumes **WSL + tmux + Claude Code** and requires no
-configuration. There is only one real implementation — Linux, inside WSL.
-Windows simply forwards commands into WSL.
-
-```
-Windows PowerShell
-        │
-        ▼
-     crabby.exe
-        │
-        ▼
-       WSL
-        │
-        ▼
-      crabby
-        │
-        ▼
-      tmux
-        │
-        ▼
-   Claude Code
-```
+Crabby is small and opinionated. It assumes **WSL + Claude Code** and needs no
+configuration. Under the hood it uses tmux to keep your sessions alive, but you
+never have to think about it — Crabby owns the whole experience and tmux stays
+out of sight.
 
 ## Install
 
@@ -68,92 +62,82 @@ crabby doctor
 > Building from source is only for contributors — see
 > [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Commands
+## Everyday use
 
-### `crabby init`
-
-Run inside a project. Creates:
-
-```
-project/
-    .claude/
-        crabby.yaml     # project metadata
-    CLAUDE.md           # small, ready to customize
-```
-
-…and registers the project.
-
-### `crabby start [project]`
-
-Creates the tmux session if it does not exist, moves into the project
-directory, launches Claude, and attaches. If the session already exists it just
-attaches. With no argument it uses the current directory.
-
-### `crabby ps`
-
-The main entrypoint. Launches a Bubble Tea TUI listing every project and its
-session state:
-
-```
-🦀 Crabby
-──────────────────────────────────────────────
-❯ ● payments
-    state: Running
-
-  ● frontend
-    state: Waiting
-
-  ○ docs
-    state: Stopped
-
-──────────────────────────────────────────────
-↑/↓  Move    Enter  Attach    r  Refresh    q  Quit
-```
-
-Select a project and press **Enter** to be dropped directly into its Claude
-session — no intermediate shell.
-
-### `crabby attach [project]`
-
-Attach to a project's session directly. With no argument it uses the current
-directory.
-
-### `crabby doctor`
-
-Checks that WSL, Ubuntu, tmux, Claude, and crabby are all present.
-
-### `crabby version`
-
-Prints the installed version, e.g. `Crabby v0.1.0`.
-
-## The complete workflow
+Add a project once:
 
 ```bash
-crabby init      # prepare the project
-crabby start     # launch Claude in a tmux session
-crabby ps        # switch between all your Claude sessions
+cd my-project
+crabby init
 ```
 
-## Session model
+Then just run Crabby:
 
-Each project owns exactly one Claude session named `crabby_<project_name>`.
-State is read live from tmux:
+```bash
+crabby
+```
 
-| State     | Meaning                                    |
-| --------- | ------------------------------------------ |
-| `Running` | session exists and a client is attached    |
-| `Waiting` | session exists but detached (idle, ready)  |
-| `Stopped` | no session                                 |
+```
+🦀 Crabby  workspace manager for Claude Code
 
-## Data & configuration
+▌ ● payments     Waiting
+    ~/work/payments   ⎇ feature/refunds   active 2m ago
 
-- **Project registry:** `~/.local/share/crabby/projects.json`
-- **Global config:** `~/.config/crabby/config.yaml`
+  ● frontend     Waiting
+    ~/work/frontend   ⎇ main   active 1h ago
+
+  ○ docs         Stopped
+    ~/work/docs   ⎇ main
+
+↑/↓ move   enter open   r refresh   q quit
+inside a session, press F12 to return here
+```
+
+- **Enter** opens the selected project in Claude. If it wasn't running, Crabby
+  starts it for you.
+- **F12** (inside a session) brings you straight back to this list — no tmux
+  shortcuts to learn. The session keeps running in the background.
+- Pick another project and you're in a different Claude in one keypress.
+- **q** quits.
+
+The return key is shown on a small Crabby status bar while you work, so you
+never have to remember it.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `crabby` | Open the home screen (this is all you normally need). |
+| `crabby init` | Register the current directory as a project (creates `.claude/crabby.yaml` and `CLAUDE.md`). |
+| `crabby ps` | Alias for `crabby`. |
+| `crabby attach [project]` | Open a specific project's session directly. |
+| `crabby start [project]` | Same as attach — launches the session if needed. |
+| `crabby doctor` | Check that WSL, Ubuntu, tmux, Claude, and crabby are present. |
+| `crabby version` | Print the installed version. |
+
+## Session states
+
+| State | Meaning |
+| --- | --- |
+| 🟢 `Running` | You're attached — this is the session you're in. |
+| 🟡 `Waiting` | Claude is alive in the background; press Enter to jump back in. |
+| ⚪ `Stopped` | Nothing running; press Enter to start fresh. |
+
+## Configuration
+
+Crabby needs no configuration. If you want to change something, edit
+`~/.config/crabby/config.yaml`:
 
 ```yaml
-claude_command: claude
-tmux_binary: tmux
+claude_command: claude   # how to launch Claude Code
+tmux_binary: tmux        # tmux binary to use
+detach_key: F12          # key that returns you to Crabby
 ```
+
+Projects are recorded in `~/.local/share/crabby/projects.json`.
+
+If your keyboard sends F12 somewhere else, set `detach_key` to another
+[tmux key name](https://man.openbsd.org/tmux#KEY_BINDINGS) such as `C-g`.
 
 ## Project layout
 
@@ -165,9 +149,9 @@ internal/
     cli/               # cobra commands
     initcmd/           # crabby init
     project/           # projects.json registry
-    session/           # project <-> tmux session mapping + state
-    tmux/              # thin tmux wrapper
-    tui/               # bubble tea list (crabby ps)
+    session/           # project <-> session mapping + state
+    tmux/              # tmux driver (dedicated socket, F12 detach, status bar)
+    tui/               # bubble tea home screen
     doctor/            # environment checks
     config/            # global config
     version/           # version (single source of truth: VERSION file)

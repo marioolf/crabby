@@ -12,11 +12,13 @@ import (
 	"strings"
 )
 
-// Config holds every setting Crabby understands. There are intentionally only
-// two.
+// Config holds every setting Crabby understands.
 type Config struct {
 	ClaudeCommand string
 	TmuxBinary    string
+	// DetachKey is the single, prefix-free key that returns from a session to
+	// Crabby (default "F12"). It uses tmux key names (e.g. "F12", "C-g").
+	DetachKey string
 }
 
 // Default returns the configuration used when no config file exists.
@@ -24,6 +26,7 @@ func Default() Config {
 	return Config{
 		ClaudeCommand: "claude",
 		TmuxBinary:    "tmux",
+		DetachKey:     "F12",
 	}
 }
 
@@ -66,6 +69,8 @@ func Load() (Config, error) {
 			cfg.ClaudeCommand = value
 		case "tmux_binary":
 			cfg.TmuxBinary = value
+		case "detach_key":
+			cfg.DetachKey = value
 		}
 	}
 	return cfg, scanner.Err()

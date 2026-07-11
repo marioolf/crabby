@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ErrNotFound is returned when a project cannot be located in the registry.
@@ -105,6 +106,34 @@ func Find(name string) (Project, error) {
 		}
 	}
 	return Project{}, ErrNotFound
+}
+
+// Branch returns the current git branch for display, or "" if the project is
+// not a git repository. It reads .git/HEAD directly — Crabby does not run git
+// or perform any git operations; this is purely informational.
+func (p Project) Branch() string {
+	data, err := os.ReadFile(filepath.Join(p.Path, ".git", "HEAD"))
+	if err != nil {
+		return ""
+	}
+	head := strings.TrimSpace(string(data))
+	if ref, ok := strings.CutPrefix(head, "ref: refs/heads/"); ok {
+		return ref
+	}
+	// Detached HEAD: show a short commit hash if it looks like one.
+	if len(head) >= 7 && isHex(head) {
+		return head[:7]
+	}
+	return ""
+}
+
+func isHex(s string) bool {
+	for _, r := range s {
+		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
 
 // FindByPath returns the project registered at the given directory.
