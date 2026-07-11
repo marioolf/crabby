@@ -7,19 +7,12 @@
 package windows
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
-
-// remoteScript converts the Windows working directory (passed as $1) into a
-// WSL path, changes into it, and execs the real crabby with the remaining
-// arguments ($@). It runs inside a login shell so ~/.local/bin is on PATH.
-//
-// Everything variable — the path and the user's arguments — is passed as
-// separate positional parameters rather than interpolated into this string,
-// so there is no shell-quoting to get wrong.
-const remoteScript = `dir="$(wslpath -a "$1")" || exit 1; shift; cd "$dir" || exit 1; exec crabby "$@"`
 
 // Forward runs the given crabby arguments inside WSL, in the WSL equivalent of
 // the current Windows directory. It returns the child process exit code.
@@ -30,7 +23,7 @@ func Forward(args []string) int {
 		return 1
 	}
 
-	cmd := exec.Command("wsl", wslArgs(cwd, args)...)
+	cmd := exec.Command("wsl", "bash", "-lc", remoteCommand(cwd, args))
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -47,13 +40,44 @@ func Forward(args []string) int {
 	return 0
 }
 
-// wslArgs builds the argument vector for wsl.exe:
+// remoteCommand builds the single string handed to `wsl bash -lc`.
 //
-//	wsl bash -lc <script> crabby <winCwd> <args...>
+// wsl.exe rebuilds and re-parses the command line it receives, which mangles
+// embedded quotes and can drop arguments. To make the payload immune to that,
+// the real script — which converts the Windows directory with wslpath, changes
+// into it, and execs crabby with the original arguments — is base64-encoded and
+// decoded inside WSL. The command line wsl.exe sees therefore contains only the
+// base64 alphabet plus a few shell operators, and no embedded double quotes.
 //
-// The token after the script becomes $0; winCwd becomes $1; the rest are $2…,
-// which become "$@" after the script shifts off the directory.
-func wslArgs(winCwd string, args []string) []string {
-	out := []string{"bash", "-lc", remoteScript, "crabby", winCwd}
-	return append(out, args...)
+// It runs via `bash <(...)` (process substitution) rather than a pipe so that
+// crabby inherits the real terminal on stdin, which `crabby ps` and
+// `crabby attach` need. The inner bash inherits PATH (including ~/.local/bin)
+// from the outer login shell.
+func remoteCommand(winCwd string, args []string) string {
+	enc := base64.StdEncoding.EncodeToString([]byte(innerScript(winCwd, args)))
+	return "bash <(echo '" + enc + "' | base64 -d)"
+}
+
+// innerScript is the bash script that actually runs inside WSL. Every dynamic
+// value is single-quoted here (safe because this whole script is base64-encoded
+// before it reaches wsl.exe).
+func innerScript(winCwd string, args []string) string {
+	var b strings.Builder
+	b.WriteString("d=$(wslpath -a ")
+	b.WriteString(shellQuote(winCwd))
+	b.WriteString(") || exit 1\n")
+	b.WriteString(`cd "$d" || exit 1` + "\n")
+	b.WriteString("exec crabby")
+	for _, a := range args {
+		b.WriteByte(' ')
+		b.WriteString(shellQuote(a))
+	}
+	b.WriteByte('\n')
+	return b.String()
+}
+
+// shellQuote wraps s in single quotes, escaping any embedded single quotes, so
+// it is a single literal bash word.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
