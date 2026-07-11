@@ -12,8 +12,25 @@
         CRABBY_REPO   owner/repo to download from (default: marioolf/crabby)
 #>
 
-#Requires -Version 5
 $ErrorActionPreference = 'Stop'
+
+# When run via `irm ... | iex`, calling `exit` would terminate the whole
+# PowerShell window. All control flow below therefore lives inside a function
+# and uses `return`, never `exit`.
+
+# PowerShell 7.3+ turns a non-zero native exit code into a terminating error
+# when $ErrorActionPreference is 'Stop'. We check exit codes ourselves (wsl,
+# curl), so disable that behaviour where it exists.
+if (Test-Path variable:PSNativeCommandUseErrorActionPreference) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
+
+# Ask wsl.exe to emit UTF-8 instead of UTF-16; otherwise captured output is
+# riddled with NUL bytes and string matching silently fails.
+$env:WSL_UTF8 = '1'
+
+# Windows PowerShell 5.1 may default to TLS 1.0/1.1, which GitHub rejects.
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
 $Repo       = if ($env:CRABBY_REPO) { $env:CRABBY_REPO } else { 'marioolf/crabby' }
 $InstallDir = Join-Path $env:LOCALAPPDATA 'Crabby'
@@ -22,9 +39,6 @@ $Binary     = 'crabby.exe'
 function Write-Ok   ($m) { Write-Host "OK   $m" -ForegroundColor Green }
 function Write-Warn ($m) { Write-Host "WARN $m" -ForegroundColor Yellow }
 function Write-Err  ($m) { Write-Host "ERR  $m" -ForegroundColor Red }
-
-# Windows PowerShell 5.1 may default to TLS 1.0/1.1, which GitHub rejects.
-try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
 # Download a URL to a file, tolerating corporate proxies and the redirect chain
 # GitHub uses for release assets (github.com -> release-assets.githubusercontent.com).
@@ -55,92 +69,98 @@ function Get-CrabbyFile {
         -UserAgent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) crabby-installer'
 }
 
-Write-Host "Installing Crabby..." -ForegroundColor Cyan
+function Invoke-CrabbyInstall {
+    Write-Host "Installing Crabby..." -ForegroundColor Cyan
 
-# --- Detect architecture ---------------------------------------------------
-switch ($env:PROCESSOR_ARCHITECTURE) {
-    'AMD64' { $arch = 'amd64' }
-    'ARM64' { $arch = 'arm64' }
-    default {
-        Write-Err "Unsupported architecture: $($env:PROCESSOR_ARCHITECTURE)"
-        exit 1
+    # --- Detect architecture -----------------------------------------------
+    switch ($env:PROCESSOR_ARCHITECTURE) {
+        'AMD64' { $arch = 'amd64' }
+        'ARM64' { $arch = 'arm64' }
+        default {
+            Write-Err "Unsupported architecture: $($env:PROCESSOR_ARCHITECTURE)"
+            return
+        }
     }
-}
 
-# --- Download and install crabby.exe ---------------------------------------
-$asset = "crabby_windows_$arch.zip"
-$url   = "https://github.com/$Repo/releases/latest/download/$asset"
-$tmp   = Join-Path $env:TEMP ("crabby_" + [System.Guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+    # --- Download and install crabby.exe -----------------------------------
+    $asset = "crabby_windows_$arch.zip"
+    $url   = "https://github.com/$Repo/releases/latest/download/$asset"
+    $tmp   = Join-Path $env:TEMP ("crabby_" + [System.Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 
-try {
-    Write-Host "   Downloading $asset..."
-    Get-CrabbyFile -Url $url -OutFile (Join-Path $tmp $asset)
-    Expand-Archive -Path (Join-Path $tmp $asset) -DestinationPath $tmp -Force
+    try {
+        Write-Host "   Downloading $asset..."
+        Get-CrabbyFile -Url $url -OutFile (Join-Path $tmp $asset)
+        Expand-Archive -Path (Join-Path $tmp $asset) -DestinationPath $tmp -Force
 
-    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-    Copy-Item -Path (Join-Path $tmp $Binary) -Destination (Join-Path $InstallDir $Binary) -Force
-    Write-Ok "Installed crabby.exe to $InstallDir"
-}
-catch {
-    $status = $null
-    if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode }
-    Write-Err "Download or installation failed: $url"
-    if ($status) { Write-Err "HTTP status: $status" }
-    Write-Err $_.Exception.Message
-    Write-Warn "If you are behind a corporate proxy, download the file in your browser and run:"
-    Write-Warn "  Expand-Archive <downloaded.zip> `"$InstallDir`" -Force"
-    exit 1
-}
-finally {
-    Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
-}
+        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+        Copy-Item -Path (Join-Path $tmp $Binary) -Destination (Join-Path $InstallDir $Binary) -Force
+        Write-Ok "Installed crabby.exe to $InstallDir"
+    }
+    catch {
+        $status = $null
+        if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode }
+        Write-Err "Download or installation failed: $url"
+        if ($status) { Write-Err "HTTP status: $status" }
+        Write-Err $_.Exception.Message
+        Write-Warn "If you are behind a corporate proxy, download the file in your browser and run:"
+        Write-Warn "  Expand-Archive <downloaded.zip> `"$InstallDir`" -Force"
+        return
+    }
+    finally {
+        Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+    }
 
-# --- Ensure it is on PATH ---------------------------------------------------
-$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-if ($userPath -notlike "*$InstallDir*") {
-    [Environment]::SetEnvironmentVariable('Path', "$userPath;$InstallDir", 'User')
-    Write-Ok "Added $InstallDir to your user PATH (restart your terminal to pick it up)"
-}
-else {
-    Write-Ok "$InstallDir is already on your PATH"
-}
-
-# --- Verify WSL -------------------------------------------------------------
-Write-Host "Checking WSL..." -ForegroundColor Cyan
-if (-not (Get-Command wsl -ErrorAction SilentlyContinue)) {
-    Write-Warn "WSL is not installed. Install it with:  wsl --install"
-    Write-Warn "Then re-run this installer to set up the Linux side."
-    exit 0
-}
-Write-Ok "WSL is installed"
-
-# --- Verify an Ubuntu distribution -----------------------------------------
-$distros = (wsl -l -q 2>$null) -join "`n"
-if ($distros -notmatch 'Ubuntu') {
-    Write-Warn "No Ubuntu distribution found. Install one with:  wsl --install -d Ubuntu"
-    Write-Warn "Then re-run this installer to set up the Linux side."
-    exit 0
-}
-Write-Ok "Ubuntu distribution found"
-
-# --- Install the Linux binary inside WSL if missing ------------------------
-Write-Host "Setting up the Linux crabby binary inside WSL..." -ForegroundColor Cyan
-wsl bash -lc "command -v crabby >/dev/null 2>&1"
-if ($LASTEXITCODE -eq 0) {
-    Write-Ok "Linux crabby is already installed in WSL"
-}
-else {
-    Write-Host "   Installing Linux crabby inside WSL..."
-    wsl bash -lc "curl -fsSL https://raw.githubusercontent.com/$Repo/main/install.sh | bash"
-    if ($LASTEXITCODE -eq 0) {
-        Write-Ok "Linux crabby installed in WSL"
+    # --- Ensure it is on PATH ----------------------------------------------
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    if ($userPath -notlike "*$InstallDir*") {
+        [Environment]::SetEnvironmentVariable('Path', "$userPath;$InstallDir", 'User')
+        $env:Path = "$env:Path;$InstallDir"
+        Write-Ok "Added $InstallDir to your user PATH (restart your terminal to pick it up)"
     }
     else {
-        Write-Warn "Could not auto-install inside WSL. Run this inside WSL:"
-        Write-Warn "  curl -fsSL https://raw.githubusercontent.com/$Repo/main/install.sh | bash"
+        Write-Ok "$InstallDir is already on your PATH"
     }
+
+    # --- Verify WSL --------------------------------------------------------
+    Write-Host "Checking WSL..." -ForegroundColor Cyan
+    if (-not (Get-Command wsl -ErrorAction SilentlyContinue)) {
+        Write-Warn "WSL is not installed. Install it with:  wsl --install"
+        Write-Warn "Then re-run this installer to set up the Linux side."
+        return
+    }
+    Write-Ok "WSL is installed"
+
+    # --- Verify an Ubuntu distribution -------------------------------------
+    # Strip any stray NUL bytes in case an older WSL ignores WSL_UTF8.
+    $distros = ((wsl -l -q) -join "`n") -replace "`0", ""
+    if ($distros -notmatch 'Ubuntu') {
+        Write-Warn "No Ubuntu distribution found. Install one with:  wsl --install -d Ubuntu"
+        Write-Warn "Then re-run this installer to set up the Linux side."
+        return
+    }
+    Write-Ok "Ubuntu distribution found"
+
+    # --- Install the Linux binary inside WSL if missing --------------------
+    Write-Host "Setting up the Linux crabby binary inside WSL..." -ForegroundColor Cyan
+    wsl bash -lc "command -v crabby >/dev/null 2>&1"
+    if ($LASTEXITCODE -eq 0) {
+        Write-Ok "Linux crabby is already installed in WSL"
+    }
+    else {
+        Write-Host "   Installing Linux crabby inside WSL..."
+        wsl bash -lc "curl -fsSL https://raw.githubusercontent.com/$Repo/main/install.sh | bash"
+        if ($LASTEXITCODE -eq 0) {
+            Write-Ok "Linux crabby installed in WSL"
+        }
+        else {
+            Write-Warn "Could not auto-install inside WSL. Run this inside WSL:"
+            Write-Warn "  curl -fsSL https://raw.githubusercontent.com/$Repo/main/install.sh | bash"
+        }
+    }
+
+    Write-Host ""
+    Write-Ok "Done! Open a new terminal and run:  crabby doctor"
 }
 
-Write-Host ""
-Write-Ok "Done! Open a new terminal and run:  crabby doctor"
+Invoke-CrabbyInstall

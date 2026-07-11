@@ -1,27 +1,27 @@
 package windows
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
-func TestShellQuote(t *testing.T) {
-	cases := map[string]string{
-		"/mnt/c/work":     `'/mnt/c/work'`,
-		"has space":       `'has space'`,
-		"it's":            `'it'\''s'`,
-		"/mnt/c/a b/it's": `'/mnt/c/a b/it'\''s'`,
+func TestWSLArgsPassesPathAndArgsPositionally(t *testing.T) {
+	got := wslArgs(`C:\Users\mario\work`, []string{"start", "payments"})
+	want := []string{
+		"bash", "-lc", remoteScript,
+		"crabby",              // $0
+		`C:\Users\mario\work`, // $1 (converted by wslpath inside the shell)
+		"start", "payments",   // $2, $3 -> "$@" after shift
 	}
-	for in, want := range cases {
-		if got := shellQuote(in); got != want {
-			t.Errorf("shellQuote(%q) = %q, want %q", in, got, want)
-		}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("wslArgs mismatch\n got: %#v\nwant: %#v", got, want)
 	}
 }
 
-func TestQuoteAll(t *testing.T) {
-	got := quoteAll([]string{"start", "payments"})
-	want := []string{"'start'", "'payments'"}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("quoteAll[%d] = %q, want %q", i, got[i], want[i])
-		}
+func TestWSLArgsNoArgs(t *testing.T) {
+	got := wslArgs(`C:\proj`, nil)
+	want := []string{"bash", "-lc", remoteScript, "crabby", `C:\proj`}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("wslArgs mismatch\n got: %#v\nwant: %#v", got, want)
 	}
 }

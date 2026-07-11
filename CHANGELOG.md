@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   proxies and through GitHub's redirect to `release-assets.githubusercontent.com`:
   it forces TLS 1.2, prefers `curl.exe`, and falls back to `Invoke-WebRequest`
   with a browser User-Agent and default proxy credentials.
+- Windows installer no longer closes the terminal window: all control flow is
+  wrapped in a function using `return` instead of top-level `exit`, which
+  terminates the whole host when run via `irm … | iex`.
+- Windows installer detects the Ubuntu distribution reliably by requesting
+  UTF-8 output from `wsl` (`WSL_UTF8=1`) and stripping stray NUL bytes, fixing
+  a false "No Ubuntu distribution found" that aborted the install.
+- Windows wrapper (`crabby.exe`) no longer fails with "cannot convert path to
+  WSL": it forwards in a single `wsl bash -lc` call that converts the working
+  directory with `wslpath` inside the distro and passes arguments positionally,
+  removing the fragile separate `wsl wslpath` invocation and all shell-quoting.
 
 ## [0.1.0] - 2026-07-11
 
