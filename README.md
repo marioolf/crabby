@@ -1,10 +1,18 @@
-# 🦀 Crabby
+# Crabby
 
-**A workspace manager for Claude Code.**
+```
+ (\/)    (\/)
+   \(o..o)/
+   /`----'\
 
-> Prepare projects. Organize sessions. Just one terminal.
+     C R A B B Y
+```
 
-_by [marioolf](https://github.com/marioolf) · [github.com/marioolf/crabby](https://github.com/marioolf/crabby)_
+**Many Claudes. One shell.**
+
+_prepare projects · orchestrate claude · one terminal_
+
+A workspace manager for Claude Code — _by [marioolf](https://github.com/marioolf) · [github.com/marioolf/crabby](https://github.com/marioolf/crabby)_
 
 Run `crabby`, pick a project, and you're in Claude. Leave the session with a
 single key and you're back on the project list, ready to jump into the next one.
@@ -82,16 +90,14 @@ crabby
 ```
 
 ```
-              _~_      _~_      _~_
-           __(o )>  __(o )>  __(o )>
+                    (\/)    (\/)
+                      \(o..o)/
+                      /`----'\
 
-                  C R A B B Y
-               Prepare projects.
-              Organize sessions.
-              Just one terminal.
-
-     by marioolf · github.com/marioolf/crabby
-────────────────────────────────────────────────
+                    C R A B B Y
+             Many Claudes. One shell.
+prepare projects · orchestrate claude · one terminal
+──────────────────────────────────────────────────
 
 ▌ ● payments
     feature/refunds

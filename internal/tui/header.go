@@ -1,41 +1,57 @@
 package tui
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
-
-	"github.com/marioolf/crabby/internal/version"
 )
 
+// The project's face. Colours are foreground-only so the user's real terminal
+// background shows through.
 var (
-	sloganStyle = lipgloss.NewStyle().Faint(true)
-	authorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	crabStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B4A")).Bold(true)
+	wordmarkStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F5C4B3")).Bold(true)
+	taglineStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#C9C9C2"))
+	subStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")).Italic(true)
 )
 
-// Header renders Crabby's shared, compact identity block: the crab-army logo,
-// the name, the slogan, and author attribution. Every full-screen Bubble Tea
-// screen renders this so the whole application feels like one thing. This is
-// the single source of the ASCII art — do not duplicate it elsewhere.
-func Header() string {
-	rows := []string{
-		logoStyle.Render("  _~_      _~_      _~_"),
-		logoStyle.Render("__(o )>  __(o )>  __(o )>"),
-		"",
-		titleStyle.Render("C R A B B Y"),
-		sloganStyle.Render("Prepare projects."),
-		sloganStyle.Render("Organize sessions."),
-		sloganStyle.Render("Just one terminal."),
-		"",
-		authorStyle.Render("by " + version.Author + " · " + version.Repo),
-	}
+// Identity text, kept verbatim by design:
+//   - the support line's separator is "·" (U+00B7) with surrounding spaces;
+//   - "claude" is intentionally lowercase in the support line.
+const (
+	Wordmark = "C R A B B Y"
+	Tagline  = "Many Claudes. One shell."
+	Subtitle = "prepare projects · orchestrate claude · one terminal"
+)
 
-	var b strings.Builder
-	for i, r := range rows {
-		b.WriteString(centered.Render(r))
-		if i < len(rows)-1 {
-			b.WriteString("\n")
-		}
+// crabArt is the crab. Its 3rd line contains a backtick, and Go raw strings
+// cannot contain one, so the literal is split and the backtick concatenated as
+// a normal string. Do NOT reformat or re-indent — the spacing is the art.
+const crabArt = ` (\/)    (\/)
+   \(o..o)/
+   /` + "`" + `----'\`
+
+// Banner renders Crabby's identity block: crab art, wordmark, tagline, and the
+// support line, stacked and centred on the widest line (the support line).
+// This is the single source of the ASCII art — do not duplicate it elsewhere.
+func Banner() string {
+	return lipgloss.JoinVertical(lipgloss.Center,
+		crabStyle.Render(crabArt),
+		"",
+		wordmarkStyle.Render(Wordmark),
+		taglineStyle.Render(Tagline),
+		subStyle.Render(Subtitle),
+	)
+}
+
+// BannerWidth is the display width of the banner (its widest line).
+func BannerWidth() int { return lipgloss.Width(Banner()) }
+
+// Splash centres the banner horizontally in the given terminal width (from
+// tea.WindowSizeMsg) with a little vertical breathing room.
+func Splash(width int) string {
+	block := Banner()
+	if width <= 0 {
+		return block
 	}
-	return b.String()
+	return lipgloss.Place(width, lipgloss.Height(block)+2,
+		lipgloss.Center, lipgloss.Center, block)
 }

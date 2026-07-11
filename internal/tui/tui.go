@@ -21,21 +21,18 @@ import (
 	"github.com/marioolf/crabby/internal/tmux"
 )
 
-const (
-	crab        = lipgloss.Color("209") // Crabby's orange
-	width       = 48
-	refreshEach = time.Second
-)
+const refreshEach = time.Second
+
+// accent is Crabby's primary highlight colour (the crab's orange).
+const accent = lipgloss.Color("#FF6B4A")
 
 var (
-	logoStyle    = lipgloss.NewStyle().Foreground(crab)
-	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(crab)
 	dividerStyle = lipgloss.NewStyle().Faint(true)
 	metaStyle    = lipgloss.NewStyle().Faint(true)
 	helpStyle    = lipgloss.NewStyle().Faint(true)
 	nameStyle    = lipgloss.NewStyle()
 	selNameStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("231"))
-	barStyle     = lipgloss.NewStyle().Foreground(crab)
+	barStyle     = lipgloss.NewStyle().Foreground(accent)
 	confirmStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
 	workingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 
@@ -44,11 +41,18 @@ var (
 		session.Waiting: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")), // yellow
 		session.Stopped: lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("244")),
 	}
-
-	centered = lipgloss.NewStyle().Width(width).Align(lipgloss.Center)
 )
 
-func divider() string { return dividerStyle.Render(strings.Repeat("─", width)) }
+// divider spans the banner's width so the whole card lines up.
+func divider() string { return dividerStyle.Render(strings.Repeat("─", BannerWidth())) }
+
+// center places content horizontally in the given terminal width (0 = as-is).
+func center(width int, content string) string {
+	if width <= 0 {
+		return content
+	}
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
+}
 
 // Action is what the user chose on the dashboard.
 type Action int
@@ -85,6 +89,7 @@ type tickMsg time.Time
 type model struct {
 	tmux      tmux.Client
 	detachKey string
+	width     int
 	items     []item
 	cursor    int
 	confirm   confirmKind
@@ -183,6 +188,9 @@ func (m model) Init() tea.Cmd { return tick() }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		return m, nil
 	case tickMsg:
 		m.refresh()
 		if m.ringBell {
@@ -249,7 +257,7 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	var b strings.Builder
-	b.WriteString(Header())
+	b.WriteString(Banner())
 	b.WriteString("\n\n")
 	b.WriteString(divider())
 	b.WriteString("\n\n")
@@ -261,7 +269,7 @@ func (m model) View() string {
 		b.WriteString(divider())
 		b.WriteString("\n")
 		b.WriteString(helpStyle.Render("n new project    q quit"))
-		return b.String()
+		return center(m.width, b.String())
 	}
 
 	for i, it := range m.items {
@@ -285,15 +293,15 @@ func (m model) View() string {
 	switch m.confirm {
 	case confirmStop:
 		b.WriteString(confirmStyle.Render(fmt.Sprintf("Stop \"%s\"? (y/n)", m.items[m.cursor].project.Name)))
-		return b.String()
+		return center(m.width, b.String())
 	case confirmRemove:
 		b.WriteString(confirmStyle.Render(fmt.Sprintf("Remove \"%s\" from Crabby? Files are kept. (y/n)", m.items[m.cursor].project.Name)))
-		return b.String()
+		return center(m.width, b.String())
 	}
 	b.WriteString(helpStyle.Render("enter open   n new   x stop   d remove"))
 	b.WriteString("\n")
 	b.WriteString(helpStyle.Render(fmt.Sprintf("r refresh   q quit   ·   %s returns from a session", m.detachKey)))
-	return b.String()
+	return center(m.width, b.String())
 }
 
 // glyph picks the status symbol and colour. A working session pulses green.
@@ -320,6 +328,7 @@ func stateLabel(s session.State, working bool) string {
 type packModel struct {
 	packs  []pack.Pack
 	cursor int
+	width  int
 	chosen *pack.Pack
 }
 
@@ -336,6 +345,10 @@ func SelectPack(packs []pack.Pack) (*pack.Pack, error) {
 func (m packModel) Init() tea.Cmd { return nil }
 
 func (m packModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if ws, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width = ws.Width
+		return m, nil
+	}
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return m, nil
@@ -361,11 +374,11 @@ func (m packModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m packModel) View() string {
 	var b strings.Builder
-	b.WriteString(Header())
+	b.WriteString(Banner())
 	b.WriteString("\n\n")
 	b.WriteString(divider())
 	b.WriteString("\n\n")
-	b.WriteString(titleStyle.Render("Select a pack"))
+	b.WriteString(wordmarkStyle.Render("Select a pack"))
 	b.WriteString("\n\n")
 	for i, p := range m.packs {
 		bar := "  "
@@ -383,5 +396,5 @@ func (m packModel) View() string {
 	b.WriteString(metaStyle.Render("packs live in " + pack.DisplayDir()))
 	b.WriteString("\n")
 	b.WriteString(helpStyle.Render("↑/↓ move   enter select   q cancel"))
-	return b.String()
+	return center(m.width, b.String())
 }

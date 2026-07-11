@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-07-12
+
+### Changed
+
+- **New visual identity.** Redesigned crab ASCII, wordmark `C R A B B Y`,
+  tagline "Many Claudes. One shell.", and support line
+  "prepare projects · orchestrate claude · one terminal", with a dedicated
+  colour palette. Rendered from a single shared component across the dashboard,
+  the pack selector, `crabby --help`, and the README.
+- The dashboard and selector now centre horizontally on the real terminal width
+  (from Bubble Tea's window-size events).
+
 ## [0.4.2] - 2026-07-11
 
 ### Changed
@@ -162,7 +174,8 @@ No functional changes.
 - One-command installers for Windows (`install.ps1`) and Linux/WSL (`install.sh`).
 - GitHub Actions release workflow producing Linux (amd64/arm64) and Windows (amd64/arm64) assets.
 
-[Unreleased]: https://github.com/marioolf/crabby/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/marioolf/crabby/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/marioolf/crabby/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/marioolf/crabby/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/marioolf/crabby/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/marioolf/crabby/compare/v0.3.1...v0.4.0
