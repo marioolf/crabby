@@ -1,5 +1,5 @@
 // Package initcmd implements `crabby init`: preparing a project so it is
-// immediately ready to work with Claude Code.
+// immediately ready to work with Claude Code, optionally from a reusable pack.
 package initcmd
 
 import (
@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/marioolf/crabby/internal/pack"
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/session"
 )
@@ -28,59 +29,69 @@ Describe conventions.
 Write important information here.
 `
 
-// Result reports what Init did, so the caller can print a friendly summary.
+// Result reports what Init did so the caller can print a friendly summary.
 type Result struct {
 	Project project.Project
-	// Created lists the files/directories that were newly created.
-	Created []string
+	PackID  string   // the pack used, or "" for the built-in default
+	Created []string // files newly created (relative paths)
+	Skipped []string // files left untouched because they already existed
 }
 
-// Init prepares the project rooted at dir: it creates .claude/crabby.yaml and
-// CLAUDE.md, then registers the project.
-func Init(dir string) (Result, error) {
+// Init prepares the project rooted at dir. When p is non-nil its files are
+// copied in (never overwriting existing ones); otherwise a minimal default
+// CLAUDE.md is created. Either way, Crabby's own .claude/crabby.yaml is written
+// and the project is registered.
+func Init(dir string, p *pack.Pack) (Result, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return Result{}, err
 	}
 
 	name := filepath.Base(abs)
-	p := project.Project{
+	proj := project.Project{
 		Name:    name,
 		Path:    abs,
 		Session: session.Name(name),
 	}
-	res := Result{Project: p}
+	res := Result{Project: proj}
 
 	claudeDir := filepath.Join(abs, ".claude")
 	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
 		return res, err
 	}
 
-	// .claude/crabby.yaml — project metadata.
-	metaPath := filepath.Join(claudeDir, "crabby.yaml")
-	meta := fmt.Sprintf("name: %s\npath: %s\nsession: %s\n", p.Name, p.Path, p.Session)
-	if created, err := writeIfMissing(metaPath, meta); err != nil {
-		return res, err
-	} else if created {
-		res.Created = append(res.Created, metaPath)
+	if p != nil {
+		copied, skipped, err := pack.Apply(*p, abs)
+		if err != nil {
+			return res, fmt.Errorf("applying pack %q: %w", p.Name, err)
+		}
+		res.PackID = p.Name
+		res.Created = append(res.Created, copied...)
+		res.Skipped = append(res.Skipped, skipped...)
+	} else {
+		if created, err := writeIfMissing(filepath.Join(abs, "CLAUDE.md"), claudeMD); err != nil {
+			return res, err
+		} else if created {
+			res.Created = append(res.Created, "CLAUDE.md")
+		} else {
+			res.Skipped = append(res.Skipped, "CLAUDE.md")
+		}
 	}
 
-	// CLAUDE.md — the small, user-customized starting point.
-	claudePath := filepath.Join(abs, "CLAUDE.md")
-	if created, err := writeIfMissing(claudePath, claudeMD); err != nil {
+	// Crabby owns .claude/crabby.yaml (project metadata for the registry), so it
+	// is always written with the correct values regardless of the pack.
+	meta := fmt.Sprintf("name: %s\npath: %s\nsession: %s\n", proj.Name, proj.Path, proj.Session)
+	if err := os.WriteFile(filepath.Join(claudeDir, "crabby.yaml"), []byte(meta), 0o644); err != nil {
 		return res, err
-	} else if created {
-		res.Created = append(res.Created, claudePath)
 	}
 
-	if err := project.Register(p); err != nil {
+	if err := project.Register(proj); err != nil {
 		return res, err
 	}
 	return res, nil
 }
 
-// writeIfMissing writes content to path only if it does not already exist, so
-// re-running init never clobbers a customized file.
+// writeIfMissing writes content to path only if it does not already exist.
 func writeIfMissing(path, content string) (bool, error) {
 	if _, err := os.Stat(path); err == nil {
 		return false, nil

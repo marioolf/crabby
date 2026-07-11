@@ -17,7 +17,7 @@ func TestInitCreatesStructureAndRegisters(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := Init(dir)
+	res, err := Init(dir, nil)
 	if err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestInitDoesNotClobberExistingClaudeMD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := Init(dir); err != nil {
+	if _, err := Init(dir, nil); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 

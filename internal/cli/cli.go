@@ -12,6 +12,7 @@ import (
 	"github.com/marioolf/crabby/internal/config"
 	"github.com/marioolf/crabby/internal/doctor"
 	"github.com/marioolf/crabby/internal/initcmd"
+	"github.com/marioolf/crabby/internal/pack"
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/tmux"
 	"github.com/marioolf/crabby/internal/tui"
@@ -42,6 +43,8 @@ func newRootCmd() *cobra.Command {
 		},
 	}
 	root.SetVersionTemplate("Crabby v{{.Version}}\n")
+	// Keep the CLI minimal — hide Cobra's auto-generated `completion` command.
+	root.CompletionOptions.DisableDefaultCmd = true
 
 	root.AddCommand(
 		newInitCmd(),
@@ -68,20 +71,90 @@ func home() error {
 	}
 
 	for {
-		selected, err := tui.Run(t, cfg.DetachKey)
+		res, err := tui.Run(t, cfg.DetachKey)
 		if err != nil {
 			return err
 		}
-		if selected == nil {
-			return nil // user quit
+		switch res.Action {
+		case tui.ActionQuit:
+			return nil
+		case tui.ActionOpen:
+			if err := openSession(cfg, t, *res.Project); err != nil {
+				pause(err)
+			}
+		case tui.ActionNewProject:
+			if err := newProject(); err != nil {
+				pause(err)
+			}
 		}
-		if err := openSession(cfg, t, *selected); err != nil {
-			// Stay in the loop; show the problem and wait for acknowledgement
-			// so it isn't lost when the list redraws.
-			fmt.Fprintln(os.Stderr, "\ncrabby:", err)
-			fmt.Fprint(os.Stderr, "\nPress Enter to return to Crabby...")
-			bufio.NewReader(os.Stdin).ReadString('\n')
+	}
+}
+
+// pause shows a problem and waits, so it isn't lost when the home screen
+// redraws over it.
+func pause(err error) {
+	fmt.Fprintln(os.Stderr, "\ncrabby:", err)
+	fmt.Fprint(os.Stderr, "\nPress Enter to return to Crabby...")
+	bufio.NewReader(os.Stdin).ReadString('\n')
+}
+
+// newProject initializes the current working directory as a project, choosing
+// a pack when more than one is available.
+func newProject() error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	p, cancelled, err := choosePack()
+	if err != nil {
+		return err
+	}
+	if cancelled {
+		return nil
+	}
+	res, err := initcmd.Init(cwd, p)
+	if err != nil {
+		return err
+	}
+	printInitSummary(res)
+	fmt.Print("\nPress Enter to return to Crabby...")
+	bufio.NewReader(os.Stdin).ReadString('\n')
+	return nil
+}
+
+// choosePack decides which pack `init` should use: none (built-in default),
+// the only one available, or one picked from a selector. The bool reports
+// whether the user cancelled the selection.
+func choosePack() (p *pack.Pack, cancelled bool, err error) {
+	packs, err := pack.List()
+	if err != nil {
+		return nil, false, err
+	}
+	switch len(packs) {
+	case 0:
+		return nil, false, nil
+	case 1:
+		return &packs[0], false, nil
+	default:
+		chosen, err := tui.SelectPack(packs)
+		if err != nil {
+			return nil, false, err
 		}
+		return chosen, chosen == nil, nil
+	}
+}
+
+func printInitSummary(res initcmd.Result) {
+	if res.PackID != "" {
+		fmt.Printf("Initialized %q using pack %q\n", res.Project.Name, res.PackID)
+	} else {
+		fmt.Printf("Initialized %q\n", res.Project.Name)
+	}
+	for _, f := range res.Created {
+		fmt.Printf("  + %s\n", f)
+	}
+	for _, f := range res.Skipped {
+		fmt.Printf("  ! %s (already exists — kept)\n", f)
 	}
 }
 
@@ -127,18 +200,18 @@ func newInitCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			res, err := initcmd.Init(cwd)
+			p, cancelled, err := choosePack()
 			if err != nil {
 				return err
 			}
-
-			fmt.Printf("Initialized project %q\n", res.Project.Name)
-			for _, f := range res.Created {
-				fmt.Printf("  created %s\n", f)
+			if cancelled {
+				return nil
 			}
-			if len(res.Created) == 0 {
-				fmt.Println("  already initialized (registry updated)")
+			res, err := initcmd.Init(cwd, p)
+			if err != nil {
+				return err
 			}
+			printInitSummary(res)
 			fmt.Println("\nNext: run `crabby` and press Enter on this project to open it.")
 			return nil
 		},

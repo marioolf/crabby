@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-11
+
+### Added
+
+- **Local project packs.** `crabby init` can apply a reusable pack — just a
+  directory of files copied into the project. Packs live in
+  `~/.config/crabby/packs/<name>/` and carry a small `pack.yaml` manifest.
+  - One pack → used automatically; several packs → a Bubble Tea selector.
+  - Existing project files are never overwritten (they're reported and kept).
+  - No variables, scripting, dependencies, or remote sources — only folders.
+  - An example lives in `examples/simple-pack/`; copy it into your packs dir to
+    start your own.
+- **Crab-army header** on the home screen (Lip Gloss), giving Crabby a playful,
+  recognizable identity.
+- **Stop a session from the home screen** with `x` (confirmed with `y/n`) — no
+  need to attach or exit Claude.
+- **New project** from the home screen with `n`, which initializes the current
+  directory (with pack selection).
+
+### Changed
+
+- The home screen shows the new header and an updated key bar
+  (`enter open · n new · x stop · r refresh · q quit`).
+- README documents packs: what they are, where they live, and how to create,
+  use, and customize one.
+
+### Removed
+
+- The auto-generated `completion` command is hidden to keep the CLI minimal.
+
 ## [0.2.0] - 2026-07-11
 
 ### Changed
@@ -69,7 +99,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-command installers for Windows (`install.ps1`) and Linux/WSL (`install.sh`).
 - GitHub Actions release workflow producing Linux (amd64/arm64) and Windows (amd64/arm64) assets.
 
-[Unreleased]: https://github.com/marioolf/crabby/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/marioolf/crabby/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/marioolf/crabby/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/marioolf/crabby/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/marioolf/crabby/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/marioolf/crabby/releases/tag/v0.1.0

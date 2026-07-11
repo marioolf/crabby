@@ -98,6 +98,8 @@ inside a session, press F12 to return here
 - **F12** (inside a session) brings you straight back to this list — no tmux
   shortcuts to learn. The session keeps running in the background.
 - Pick another project and you're in a different Claude in one keypress.
+- **n** adds the current directory as a project (see [Packs](#packs)).
+- **x** stops the highlighted session (asks first) — no need to exit Claude.
 - **q** quits.
 
 The return key is shown on a small Crabby status bar while you work, so you
@@ -114,6 +116,70 @@ never have to remember it.
 | `crabby start [project]` | Same as attach — launches the session if needed. |
 | `crabby doctor` | Check that WSL, Ubuntu, tmux, Claude, and crabby are present. |
 | `crabby version` | Print the installed version. |
+
+## Packs
+
+A **pack** is a reusable project setup — nothing more than a directory of files
+that Crabby copies into a project when you run `crabby init`. No plugins, no
+templates, no variables: just folders.
+
+Packs live in:
+
+```text
+~/.config/crabby/packs/
+```
+
+Each subdirectory is one pack:
+
+```text
+~/.config/crabby/packs/
+    simple/
+    go/
+    company/
+```
+
+A pack contains a small manifest plus whatever files you want copied in:
+
+```text
+simple/
+    pack.yaml          # manifest (not copied into the project)
+    CLAUDE.md          # copied
+    .claude/           # copied (any files you like)
+```
+
+`pack.yaml` only needs a name; the rest is optional:
+
+```yaml
+name: simple
+description: Minimal starter pack
+author: Mario Lopez
+version: 1.0.0
+```
+
+### Using a pack
+
+Run `crabby init` in a project (or press **n** on the home screen):
+
+- **No packs installed** → Crabby writes a minimal default `CLAUDE.md`.
+- **One pack** → it's used automatically.
+- **Several packs** → Crabby shows a selector.
+
+Files that already exist in the project are **never overwritten** — they're
+reported and kept. Crabby always writes its own `.claude/crabby.yaml`
+(the registry metadata) regardless of the pack.
+
+### Creating your own pack
+
+Copy the bundled example and edit it — that's the whole workflow:
+
+```bash
+cp -r examples/simple-pack ~/.config/crabby/packs/mypack
+# edit ~/.config/crabby/packs/mypack/pack.yaml (set the name)
+# edit ~/.config/crabby/packs/mypack/CLAUDE.md, add any other files
+```
+
+Next time you run `crabby init`, your pack is available. Packs are just
+directories, so managing them is `cp`, `rm`, and your editor.
 
 ## Session states
 
@@ -147,15 +213,17 @@ cmd/
     crabby-windows/    # Windows wrapper -> crabby.exe
 internal/
     cli/               # cobra commands
-    initcmd/           # crabby init
+    initcmd/           # crabby init (+ pack application)
+    pack/              # local project packs
     project/           # projects.json registry
     session/           # project <-> session mapping + state
     tmux/              # tmux driver (dedicated socket, F12 detach, status bar)
-    tui/               # bubble tea home screen
+    tui/               # bubble tea home screen + pack selector
     doctor/            # environment checks
     config/            # global config
     version/           # version (single source of truth: VERSION file)
     windows/           # wsl forwarding
+examples/simple-pack/  # example pack to copy and customize
 .github/workflows/     # CI + release automation
 docs/RELEASING.md      # how to cut a release
 install.sh             # Linux / WSL installer

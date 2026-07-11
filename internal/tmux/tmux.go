@@ -89,6 +89,12 @@ func (c Client) NewSession(name, dir, command string) error {
 	return c.run(a...)
 }
 
+// KillSession ends a session (and the program running in it). Used by the home
+// screen's stop key so the user never has to touch tmux directly.
+func (c Client) KillSession(name string) error {
+	return c.run("kill-session", "-t", name)
+}
+
 // RenameWindow sets the session's window name, which Crabby uses to show the
 // project name in the status bar instead of the running command.
 func (c Client) RenameWindow(session, name string) error {
