@@ -28,17 +28,16 @@ const (
 )
 
 var (
-	logoStyle     = lipgloss.NewStyle().Foreground(crab)
-	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(crab)
-	subtitleStyle = lipgloss.NewStyle().Faint(true)
-	dividerStyle  = lipgloss.NewStyle().Faint(true)
-	metaStyle     = lipgloss.NewStyle().Faint(true)
-	helpStyle     = lipgloss.NewStyle().Faint(true)
-	nameStyle     = lipgloss.NewStyle()
-	selNameStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("231"))
-	barStyle      = lipgloss.NewStyle().Foreground(crab)
-	confirmStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
-	workingStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	logoStyle    = lipgloss.NewStyle().Foreground(crab)
+	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(crab)
+	dividerStyle = lipgloss.NewStyle().Faint(true)
+	metaStyle    = lipgloss.NewStyle().Faint(true)
+	helpStyle    = lipgloss.NewStyle().Faint(true)
+	nameStyle    = lipgloss.NewStyle()
+	selNameStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("231"))
+	barStyle     = lipgloss.NewStyle().Foreground(crab)
+	confirmStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+	workingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 
 	stateStyles = map[session.State]lipgloss.Style{
 		session.Running: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42")),  // green
@@ -48,25 +47,6 @@ var (
 
 	centered = lipgloss.NewStyle().Width(width).Align(lipgloss.Center)
 )
-
-// logo is the compact "crab army" banner.
-func logo() string {
-	rows := []string{
-		logoStyle.Render("  _~_      _~_      _~_"),
-		logoStyle.Render("__(o )>  __(o )>  __(o )>"),
-		"",
-		titleStyle.Render("C R A B B Y"),
-		subtitleStyle.Render("manage your Claude army"),
-	}
-	var b strings.Builder
-	for i, r := range rows {
-		b.WriteString(centered.Render(r))
-		if i < len(rows)-1 {
-			b.WriteString("\n")
-		}
-	}
-	return b.String()
-}
 
 func divider() string { return dividerStyle.Render(strings.Repeat("─", width)) }
 
@@ -269,7 +249,7 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	var b strings.Builder
-	b.WriteString(logo())
+	b.WriteString(Header())
 	b.WriteString("\n\n")
 	b.WriteString(divider())
 	b.WriteString("\n\n")
@@ -381,6 +361,10 @@ func (m packModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m packModel) View() string {
 	var b strings.Builder
+	b.WriteString(Header())
+	b.WriteString("\n\n")
+	b.WriteString(divider())
+	b.WriteString("\n\n")
 	b.WriteString(titleStyle.Render("Select a pack"))
 	b.WriteString("\n\n")
 	for i, p := range m.packs {

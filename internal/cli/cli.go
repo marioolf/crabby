@@ -31,9 +31,10 @@ func Execute() int {
 
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:           "crabby",
-		Short:         "A workspace manager for Claude Code",
-		Long:          "Crabby manages your Claude Code workspaces. Run it with no arguments to open the home screen, pick a project, and jump straight into Claude.",
+		Use:   "crabby",
+		Short: "A workspace manager for Claude Code",
+		Long: fmt.Sprintf("%s — a workspace manager for Claude Code.\n%s\n\nRun it with no arguments to open the home screen, pick a project, and jump straight into Claude.\n\n%s",
+			version.App, version.Slogan, version.Repo),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       version.String(),
@@ -190,7 +191,8 @@ func newVersionCmd() *cobra.Command {
 		Short: "Print the Crabby version",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Printf("Crabby v%s\n", version.String())
+			fmt.Printf("%s v%s\n", version.App, version.String())
+			fmt.Printf("by %s · %s\n", version.Author, version.Repo)
 			return nil
 		},
 	}
@@ -333,6 +335,7 @@ func newDoctorCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			fmt.Printf("%s v%s  ·  %s\n\n", version.App, version.String(), version.Repo)
 			allOK := true
 			for _, c := range doctor.Run(cfg) {
 				mark := "✓"

@@ -2,6 +2,10 @@
 
 **A workspace manager for Claude Code.**
 
+> Prepare projects. Organize sessions. Just one terminal.
+
+_by [marioolf](https://github.com/marioolf) · [github.com/marioolf/crabby](https://github.com/marioolf/crabby)_
+
 Run `crabby`, pick a project, and you're in Claude. Leave the session with a
 single key and you're back on the project list, ready to jump into the next one.
 Crabby is the home screen for all your Claude Code work.
@@ -80,8 +84,13 @@ crabby
 ```
               _~_      _~_      _~_
            __(o )>  __(o )>  __(o )>
+
                   C R A B B Y
-            manage your Claude army
+               Prepare projects.
+              Organize sessions.
+              Just one terminal.
+
+     by marioolf · github.com/marioolf/crabby
 ────────────────────────────────────────────────
 
 ▌ ● payments

@@ -15,6 +15,15 @@ import (
 	"strings"
 )
 
+// Application identity, shared across the CLI and TUI so Crabby presents itself
+// consistently everywhere.
+const (
+	App    = "Crabby"
+	Author = "marioolf"
+	Repo   = "github.com/marioolf/crabby"
+	Slogan = "Prepare projects. Organize sessions. Just one terminal."
+)
+
 // Version is populated at build time via -ldflags. Leave it empty here.
 var Version = ""
 

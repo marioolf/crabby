@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-11
+
+### Changed
+
+- **Shared application header.** The crab-army logo, name, slogan
+  ("Prepare projects. Organize sessions. Just one terminal."), and author
+  attribution are now one reusable component rendered on every full-screen
+  interface — the dashboard and the pack selector — so Crabby feels cohesive.
+  The ASCII art is defined exactly once.
+- **Consistent identity.** `crabby version`, `crabby doctor`, and `--help` now
+  show the name, version, author (`marioolf`), and repo
+  (`github.com/marioolf/crabby`) tastefully. Installers print the same line.
+
+No functional changes.
+
 ## [0.4.0] - 2026-07-11
 
 ### Added
@@ -139,7 +154,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-command installers for Windows (`install.ps1`) and Linux/WSL (`install.sh`).
 - GitHub Actions release workflow producing Linux (amd64/arm64) and Windows (amd64/arm64) assets.
 
-[Unreleased]: https://github.com/marioolf/crabby/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/marioolf/crabby/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/marioolf/crabby/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/marioolf/crabby/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/marioolf/crabby/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/marioolf/crabby/compare/v0.2.0...v0.3.0

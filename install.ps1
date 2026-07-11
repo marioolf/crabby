@@ -161,6 +161,7 @@ function Invoke-CrabbyInstall {
 
     Write-Host ""
     Write-Ok "Done! Open a new terminal and run:  crabby doctor"
+    Write-Host "   Crabby · by marioolf · github.com/marioolf/crabby" -ForegroundColor DarkGray
 }
 
 Invoke-CrabbyInstall

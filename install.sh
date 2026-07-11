@@ -72,6 +72,7 @@ main() {
 
 	echo
 	ok "Done! Run 'crabby doctor' to verify your setup."
+	info "Crabby · by marioolf · github.com/marioolf/crabby"
 }
 
 main "$@"
