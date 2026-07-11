@@ -25,6 +25,31 @@ func Name(projectName string) string {
 	return "crabby_" + projectName
 }
 
+// Classify maps a session's presence and attachment into a State. Used by the
+// dashboard, which fetches all sessions in one batch call.
+func Classify(present, attached bool) State {
+	switch {
+	case !present:
+		return Stopped
+	case attached:
+		return Running
+	default:
+		return Waiting
+	}
+}
+
+// Rank orders states by importance for sorting (Running first).
+func Rank(s State) int {
+	switch s {
+	case Running:
+		return 0
+	case Waiting:
+		return 1
+	default:
+		return 2
+	}
+}
+
 // Detect returns the current state of a project's session.
 func Detect(t tmux.Client, p project.Project) State {
 	name := sessionName(p)

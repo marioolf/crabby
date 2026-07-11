@@ -158,6 +158,10 @@ func printInitSummary(res initcmd.Result) {
 	for _, f := range res.Skipped {
 		fmt.Printf("  ! %s (already exists — kept)\n", f)
 	}
+	if res.PackID == "" {
+		fmt.Printf("\nTip: drop reusable project packs in %s to customize new projects.\n", pack.DisplayDir())
+		fmt.Println("     Copy an example: cp -r examples/<name> " + pack.DisplayDir() + "/<name>")
+	}
 }
 
 // openSession launches Claude for a project if needed and attaches to it,

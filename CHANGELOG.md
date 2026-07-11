@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-11
+
+### Added
+
+- **Dashboard.** The home screen is now a live dashboard with a compact,
+  colourful "crab army" ASCII logo, projects sorted by importance
+  (Running → Waiting → Stopped, then alphabetically), and colour-coded states
+  (green / yellow / grey) with symbols.
+- **Auto-refresh** (~1s) so state stays current without pressing `r`. State for
+  all sessions is fetched in a single tmux call, so it stays fast with many
+  projects.
+- **Working indicator + bell.** A background session that is producing output is
+  tagged `· working`; when one starts working, Crabby rings a short terminal
+  bell — a lightweight, reliable notification that needs no background daemon.
+- **Friendly empty state** when no projects are registered.
+- Two more example packs (`examples/go-pack`, `examples/docs-pack`) and the
+  packs directory is now surfaced in the pack selector and after `crabby init`,
+  so packs are discoverable.
+
+### Changed
+
+- Project rows are cleaner: name, git branch, and state only (`less is more`).
+- README documents the dashboard, visual identity, notifications (and their one
+  honest limitation), and how to discover and create packs.
+
+### Notes
+
+- Desktop notifications *while attached to a session* are intentionally not
+  implemented: Crabby yields the terminal to the session and does not run a
+  background service. The live dashboard is the practical alternative.
+
 ## [0.3.1] - 2026-07-11
 
 ### Added
@@ -108,7 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-command installers for Windows (`install.ps1`) and Linux/WSL (`install.sh`).
 - GitHub Actions release workflow producing Linux (amd64/arm64) and Windows (amd64/arm64) assets.
 
-[Unreleased]: https://github.com/marioolf/crabby/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/marioolf/crabby/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/marioolf/crabby/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/marioolf/crabby/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/marioolf/crabby/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/marioolf/crabby/compare/v0.1.1...v0.2.0

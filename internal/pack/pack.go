@@ -36,6 +36,19 @@ func Dir() (string, error) {
 	return filepath.Join(cfg, "crabby", "packs"), nil
 }
 
+// DisplayDir returns the packs directory with the home prefix shortened to ~,
+// for showing users where to put their packs.
+func DisplayDir() string {
+	d, err := Dir()
+	if err != nil {
+		return "~/.config/crabby/packs"
+	}
+	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(d, home) {
+		return "~" + d[len(home):]
+	}
+	return d
+}
+
 // List returns every valid pack, sorted by name. Directories without a valid
 // pack.yaml are skipped. A missing packs directory yields no packs (not an
 // error).

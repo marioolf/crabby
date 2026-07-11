@@ -66,6 +66,40 @@ func (c Client) Attached(name string) bool {
 	return out != "0"
 }
 
+// Session is a snapshot of one tmux session's live state.
+type Session struct {
+	Attached bool
+	Activity time.Time
+}
+
+// ListSessions returns every session on Crabby's server in a single call, so
+// the dashboard can refresh cheaply regardless of how many projects exist. A
+// missing server (no sessions) yields an empty map, not an error.
+//
+// Activity uses the window's activity timestamp, which — unlike
+// session_activity — advances when a detached session produces output. That is
+// what lets the dashboard show which background sessions are working.
+func (c Client) ListSessions() map[string]Session {
+	out, err := c.output("list-sessions", "-F",
+		"#{session_name}\t#{session_attached}\t#{window_activity}")
+	sessions := map[string]Session{}
+	if err != nil {
+		return sessions
+	}
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Split(line, "\t")
+		if len(fields) != 3 {
+			continue
+		}
+		sec, _ := strconv.ParseInt(fields[2], 10, 64)
+		sessions[fields[0]] = Session{
+			Attached: fields[1] != "0",
+			Activity: time.Unix(sec, 0),
+		}
+	}
+	return sessions
+}
+
 // Activity returns the time of the session's last activity.
 func (c Client) Activity(name string) (time.Time, bool) {
 	out, err := c.output("display-message", "-p", "-t", name, "#{session_activity}")

@@ -78,20 +78,33 @@ crabby
 ```
 
 ```
-🦀 Crabby  workspace manager for Claude Code
+              _~_      _~_      _~_
+           __(o )>  __(o )>  __(o )>
+                  C R A B B Y
+            manage your Claude army
+────────────────────────────────────────────────
 
-▌ ● payments     Waiting
-    ~/work/payments   ⎇ feature/refunds   active 2m ago
+▌ ● payments
+    feature/refunds
+    Waiting · working
 
-  ● frontend     Waiting
-    ~/work/frontend   ⎇ main   active 1h ago
+  ● frontend
+    main
+    Waiting
 
-  ○ docs         Stopped
-    ~/work/docs   ⎇ main
+  ○ docs
+    main
+    Stopped
 
-↑/↓ move   enter open   r refresh   q quit
-inside a session, press F12 to return here
+────────────────────────────────────────────────
+enter open   n new   x stop   d remove
+r refresh   q quit   ·   F12 returns from a session
 ```
+
+The dashboard **refreshes automatically** (about once a second), sorts projects
+by importance (**Running → Waiting → Stopped**, then alphabetically), and marks
+sessions that are **currently producing output** with `· working`. State is
+colour-coded: green (running), yellow (waiting), grey (stopped).
 
 - **Enter** opens the selected project in Claude. If it wasn't running, Crabby
   starts it for you.
@@ -173,16 +186,20 @@ reported and kept. Crabby always writes its own `.claude/crabby.yaml`
 
 ### Creating your own pack
 
-Copy the bundled example and edit it — that's the whole workflow:
+Copy one of the bundled examples and edit it — that's the whole workflow. The
+repo ships a few in [`examples/`](examples/): `simple-pack`, `go-pack`,
+`docs-pack`.
 
 ```bash
-cp -r examples/simple-pack ~/.config/crabby/packs/mypack
-# edit ~/.config/crabby/packs/mypack/pack.yaml (set the name)
-# edit ~/.config/crabby/packs/mypack/CLAUDE.md, add any other files
+cp -r examples/go-pack ~/.config/crabby/packs/go
+# edit ~/.config/crabby/packs/go/pack.yaml (set the name)
+# edit ~/.config/crabby/packs/go/CLAUDE.md, add any other files
 ```
 
-Next time you run `crabby init`, your pack is available. Packs are just
-directories, so managing them is `cp`, `rm`, and your editor.
+Next time you run `crabby init`, your pack is available (and with two or more,
+you get the selector). Packs are just directories, so managing them is `cp`,
+`rm`, and your editor. Crabby prints the packs directory after a plain `init`
+and shows it in the selector, so you always know where they go.
 
 ## Session states
 
@@ -191,6 +208,25 @@ directories, so managing them is `cp`, `rm`, and your editor.
 | 🟢 `Running` | You're attached — this is the session you're in. |
 | 🟡 `Waiting` | Claude is alive in the background; press Enter to jump back in. |
 | ⚪ `Stopped` | Nothing running; press Enter to start fresh. |
+
+A `Waiting` session that is actively producing output is tagged `· working`, so
+you can see at a glance which of your Claude workers are busy.
+
+## Notifications
+
+The dashboard is itself the notification surface: because it refreshes every
+second, sessions that are working light up with `· working` and reorder to the
+top, and a session that has just started producing output rings a short
+terminal bell.
+
+**Limitation, stated honestly:** Crabby cannot pop a desktop notification *while
+you are inside a Claude session*. When you open a session, Crabby hands the
+whole terminal to it and waits — it is not running in the background, so it has
+nothing to notify *from*. Reliable cross-session desktop alerts would require a
+background daemon, which this project intentionally avoids. The practical,
+robust alternative is the live dashboard: leave `crabby` open on a second
+terminal (or glance at it between tasks) to see which workers are busy, idle, or
+done.
 
 ## Configuration
 
@@ -226,7 +262,7 @@ internal/
     config/            # global config
     version/           # version (single source of truth: VERSION file)
     windows/           # wsl forwarding
-examples/simple-pack/  # example pack to copy and customize
+examples/              # example packs to copy and customize (simple, go, docs)
 .github/workflows/     # CI + release automation
 docs/RELEASING.md      # how to cut a release
 install.sh             # Linux / WSL installer
