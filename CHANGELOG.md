@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-11
+
+### Changed
+
+- `crabby --help` now opens with the same shared header (crab logo, name,
+  slogan, author) shown on the dashboard and pack selector, so the help output
+  matches the rest of the application.
+
 ## [0.4.1] - 2026-07-11
 
 ### Changed
@@ -154,7 +162,8 @@ No functional changes.
 - One-command installers for Windows (`install.ps1`) and Linux/WSL (`install.sh`).
 - GitHub Actions release workflow producing Linux (amd64/arm64) and Windows (amd64/arm64) assets.
 
-[Unreleased]: https://github.com/marioolf/crabby/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/marioolf/crabby/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/marioolf/crabby/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/marioolf/crabby/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/marioolf/crabby/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/marioolf/crabby/compare/v0.3.0...v0.3.1

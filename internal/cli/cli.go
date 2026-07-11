@@ -33,8 +33,9 @@ func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "crabby",
 		Short: "A workspace manager for Claude Code",
-		Long: fmt.Sprintf("%s — a workspace manager for Claude Code.\n%s\n\nRun it with no arguments to open the home screen, pick a project, and jump straight into Claude.\n\n%s",
-			version.App, version.Slogan, version.Repo),
+		Long: tui.Header() + "\n\n" +
+			"A workspace manager for Claude Code.\n" +
+			"Run it with no arguments to open the home screen, pick a project, and jump straight into Claude.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       version.String(),
