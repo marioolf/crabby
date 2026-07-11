@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows installer now downloads release assets reliably behind corporate
+  proxies and through GitHub's redirect to `release-assets.githubusercontent.com`:
+  it forces TLS 1.2, prefers `curl.exe`, and falls back to `Invoke-WebRequest`
+  with a browser User-Agent and default proxy credentials.
+
 ## [0.1.0] - 2026-07-11
 
 ### Added

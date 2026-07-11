@@ -23,6 +23,38 @@ function Write-Ok   ($m) { Write-Host "OK   $m" -ForegroundColor Green }
 function Write-Warn ($m) { Write-Host "WARN $m" -ForegroundColor Yellow }
 function Write-Err  ($m) { Write-Host "ERR  $m" -ForegroundColor Red }
 
+# Windows PowerShell 5.1 may default to TLS 1.0/1.1, which GitHub rejects.
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
+
+# Download a URL to a file, tolerating corporate proxies and the redirect chain
+# GitHub uses for release assets (github.com -> release-assets.githubusercontent.com).
+#
+# Strategy: prefer curl.exe (ships with Windows 10 1803+/11) because it follows
+# redirects and handles TLS much like a browser. Fall back to Invoke-WebRequest
+# with a browser-like User-Agent and the system proxy's default credentials.
+function Get-CrabbyFile {
+    param(
+        [Parameter(Mandatory)] [string] $Url,
+        [Parameter(Mandatory)] [string] $OutFile
+    )
+
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if ($curl) {
+        & $curl.Source --fail --location --silent --show-error --retry 3 `
+            --proto '=https' --tlsv1.2 --output $OutFile $Url 2>$null
+        if ($LASTEXITCODE -eq 0 -and (Test-Path $OutFile)) { return }
+    }
+
+    # Fallback: Invoke-WebRequest, made as browser-like as possible.
+    try {
+        [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
+    } catch {}
+
+    Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing `
+        -MaximumRedirection 5 -ErrorAction Stop `
+        -UserAgent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) crabby-installer'
+}
+
 Write-Host "Installing Crabby..." -ForegroundColor Cyan
 
 # --- Detect architecture ---------------------------------------------------
@@ -43,7 +75,7 @@ New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 
 try {
     Write-Host "   Downloading $asset..."
-    Invoke-WebRequest -Uri $url -OutFile (Join-Path $tmp $asset) -UseBasicParsing
+    Get-CrabbyFile -Url $url -OutFile (Join-Path $tmp $asset)
     Expand-Archive -Path (Join-Path $tmp $asset) -DestinationPath $tmp -Force
 
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
@@ -51,9 +83,13 @@ try {
     Write-Ok "Installed crabby.exe to $InstallDir"
 }
 catch {
+    $status = $null
+    if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode }
     Write-Err "Download or installation failed: $url"
+    if ($status) { Write-Err "HTTP status: $status" }
     Write-Err $_.Exception.Message
-    Write-Err "Check that a release exists at https://github.com/$Repo/releases"
+    Write-Warn "If you are behind a corporate proxy, download the file in your browser and run:"
+    Write-Warn "  Expand-Archive <downloaded.zip> `"$InstallDir`" -Force"
     exit 1
 }
 finally {
