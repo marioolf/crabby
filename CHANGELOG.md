@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-11
+
 ### Fixed
 
 - Windows installer now downloads release assets reliably behind corporate
@@ -20,9 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   UTF-8 output from `wsl` (`WSL_UTF8=1`) and stripping stray NUL bytes, fixing
   a false "No Ubuntu distribution found" that aborted the install.
 - Windows wrapper (`crabby.exe`) no longer fails with "cannot convert path to
-  WSL": it forwards in a single `wsl bash -lc` call that converts the working
-  directory with `wslpath` inside the distro and passes arguments positionally,
-  removing the fragile separate `wsl wslpath` invocation and all shell-quoting.
+  WSL": it converts the working directory with `wslpath` inside the distro
+  instead of via a fragile separate `wsl wslpath` invocation.
+- Windows wrapper no longer drops command arguments (`crabby doctor` ran as
+  bare `crabby`). The forwarded command is now base64-encoded so `wsl.exe`
+  cannot mangle its quoting, and runs via `bash <(…)` so `crabby ps` and
+  `crabby attach` keep a real terminal on stdin.
 
 ## [0.1.0] - 2026-07-11
 
@@ -38,5 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One-command installers for Windows (`install.ps1`) and Linux/WSL (`install.sh`).
 - GitHub Actions release workflow producing Linux (amd64/arm64) and Windows (amd64/arm64) assets.
 
-[Unreleased]: https://github.com/marioolf/crabby/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/marioolf/crabby/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/marioolf/crabby/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/marioolf/crabby/releases/tag/v0.1.0
