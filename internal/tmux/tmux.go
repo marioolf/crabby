@@ -70,6 +70,7 @@ func (c Client) Attached(name string) bool {
 type Session struct {
 	Attached bool
 	Activity time.Time
+	Created  time.Time // when the session was started, for uptime
 }
 
 // ListSessions returns every session on Crabby's server in a single call, so
@@ -81,20 +82,22 @@ type Session struct {
 // what lets the dashboard show which background sessions are working.
 func (c Client) ListSessions() map[string]Session {
 	out, err := c.output("list-sessions", "-F",
-		"#{session_name}\t#{session_attached}\t#{window_activity}")
+		"#{session_name}\t#{session_attached}\t#{window_activity}\t#{session_created}")
 	sessions := map[string]Session{}
 	if err != nil {
 		return sessions
 	}
 	for _, line := range strings.Split(out, "\n") {
 		fields := strings.Split(line, "\t")
-		if len(fields) != 3 {
+		if len(fields) != 4 {
 			continue
 		}
-		sec, _ := strconv.ParseInt(fields[2], 10, 64)
+		activity, _ := strconv.ParseInt(fields[2], 10, 64)
+		created, _ := strconv.ParseInt(fields[3], 10, 64)
 		sessions[fields[0]] = Session{
 			Attached: fields[1] != "0",
-			Activity: time.Unix(sec, 0),
+			Activity: time.Unix(activity, 0),
+			Created:  time.Unix(created, 0),
 		}
 	}
 	return sessions

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-13
+
+### Added
+
+- **Workspace insights on the dashboard.** Each workspace now shows what Claude
+  is doing (Thinking / Editing files / Reading files / Running command /
+  Responding / Waiting for input / Idle), the model in use, tokens spent this
+  session, uptime, and how long ago Claude last acted — all read from Claude
+  Code's own session transcripts under `~/.claude/projects/`, not from terminal
+  scraping.
+- **Global usage summary** below the list: workspace counts by state, how many
+  are working right now, and total input+output tokens spent today.
+
+### Notes
+
+- All figures are factual. Crabby never estimates progress percentages or
+  completion times, and omits any field it cannot read reliably rather than
+  showing a placeholder.
+- Token counts are input + output (cache tokens excluded); per-workspace is the
+  current session total, the global summary is today's total.
+- The activity label is best-effort: it is derived from the tail of the
+  transcript and can lag the live terminal by a moment, so it is only shown
+  while the session is actively producing output. The coarse state
+  (running/waiting/stopped) is always reliable.
+- Transcripts are read incrementally (only newly-appended bytes) so the
+  dashboard stays responsive with many workspaces.
+
 ## [0.5.1] - 2026-07-13
 
 ### Changed

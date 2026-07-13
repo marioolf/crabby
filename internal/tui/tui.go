@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/marioolf/crabby/internal/importcmd"
+	"github.com/marioolf/crabby/internal/insights"
 	"github.com/marioolf/crabby/internal/pack"
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/session"
@@ -83,6 +84,8 @@ type item struct {
 	state   session.State
 	branch  string
 	working bool // producing output right now
+	uptime  time.Duration
+	insight insights.Insight
 }
 
 type tickMsg time.Time
@@ -90,6 +93,7 @@ type tickMsg time.Time
 type model struct {
 	tmux      tmux.Client
 	detachKey string
+	insights  *insights.Collector
 	width     int
 	items     []item
 	cursor    int
@@ -103,11 +107,17 @@ type model struct {
 	firstLoad    bool
 }
 
-// Run displays the dashboard and returns the chosen action.
-func Run(t tmux.Client, detachKey string) (Result, error) {
+// Run displays the dashboard and returns the chosen action. The collector
+// supplies transcript-derived insights and is reused across refreshes so its
+// incremental cache survives; pass nil to run without them.
+func Run(t tmux.Client, detachKey string, coll *insights.Collector) (Result, error) {
+	if coll == nil {
+		coll = insights.New()
+	}
 	m := model{
 		tmux:         t,
 		detachKey:    detachKey,
+		insights:     coll,
 		result:       Result{Action: ActionQuit},
 		lastActivity: map[string]time.Time{},
 		working:      map[string]bool{},
@@ -140,12 +150,16 @@ func (m *model) refresh() {
 			project: p,
 			state:   session.Classify(present, info.Attached),
 			branch:  p.Branch(),
+			insight: m.insights.For(p.Path),
 		}
 		if present {
 			prev, seen := m.lastActivity[p.Session]
 			it.working = seen && info.Activity.After(prev)
 			if it.working && !m.working[p.Session] && !m.firstLoad {
 				risingEdge = true
+			}
+			if !info.Created.IsZero() {
+				it.uptime = time.Since(info.Created)
 			}
 			m.lastActivity[p.Session] = info.Activity
 			m.working[p.Session] = it.working
@@ -283,14 +297,26 @@ func (m model) View() string {
 		}
 		dot, dotStyle := glyph(it.state, it.working)
 		b.WriteString(fmt.Sprintf("%s%s %s\n", bar, dotStyle.Render(dot), name))
-		if it.branch != "" {
-			b.WriteString("    " + metaStyle.Render(it.branch) + "\n")
+
+		// What it's doing now, with how long ago Claude last wrote.
+		activity := m.activityLabel(it)
+		if ago := lastActivityAgo(it.insight); ago != "" {
+			activity += metaStyle.Render("  ·  " + ago)
 		}
-		b.WriteString("    " + stateLabel(it.state, it.working) + "\n\n")
+		b.WriteString("    " + activity + "\n")
+
+		// Factual metadata: only the parts we actually have.
+		if meta := metaLine(it); meta != "" {
+			b.WriteString("    " + metaStyle.Render(meta) + "\n")
+		}
+		b.WriteString("\n")
 	}
 
 	b.WriteString(divider())
 	b.WriteString("\n")
+	if summary := m.summaryLine(); summary != "" {
+		b.WriteString(summary + "\n")
+	}
 	switch m.confirm {
 	case confirmStop:
 		b.WriteString(confirmStyle.Render(fmt.Sprintf("Stop \"%s\"? (y/n)", m.items[m.cursor].project.Name)))
@@ -316,12 +342,146 @@ func glyph(s session.State, working bool) (string, lipgloss.Style) {
 	return "●", stateStyles[s]
 }
 
-func stateLabel(s session.State, working bool) string {
-	label := stateStyles[s].Render(string(s))
-	if working {
-		return label + workingStyle.Render(" · working")
+// activityLabel describes what a session is doing, combining tmux's live
+// "working" signal with the transcript's last recorded step. It never invents
+// state: with no transcript it falls back to the plain session state.
+func (m model) activityLabel(it item) string {
+	if it.state == session.Stopped {
+		return stateStyles[session.Stopped].Render("Stopped")
 	}
-	return label
+	if it.working {
+		return workingStyle.Render(workingActivity(it.insight))
+	}
+	if it.insight.Activity == insights.Responding {
+		return stateStyles[session.Waiting].Render("Waiting for input")
+	}
+	return metaStyle.Render("Idle")
+}
+
+// workingActivity turns a transcript activity into a label, always returning
+// something — it falls back to a plain "Working" when the tail gives no hint.
+func workingActivity(ins insights.Insight) string {
+	switch ins.Activity {
+	case insights.Thinking:
+		return "Thinking…"
+	case insights.Editing:
+		return "Editing files"
+	case insights.Reading:
+		return "Reading files"
+	case insights.Running:
+		if ins.Detail == "" || ins.Detail == "Bash" {
+			return "Running command"
+		}
+		return "Running " + ins.Detail
+	case insights.Responding:
+		return "Responding"
+	default:
+		return "Working"
+	}
+}
+
+// metaLine joins the factual bits we have for a project into one faint line,
+// omitting anything unavailable.
+func metaLine(it item) string {
+	var parts []string
+	if it.branch != "" {
+		parts = append(parts, it.branch)
+	}
+	if it.uptime > 0 {
+		parts = append(parts, "up "+formatDuration(it.uptime))
+	}
+	if it.insight.Model != "" {
+		parts = append(parts, it.insight.Model)
+	}
+	if it.insight.SessionTokens > 0 {
+		parts = append(parts, formatTokens(it.insight.SessionTokens)+" tok")
+	}
+	return strings.Join(parts, "  ·  ")
+}
+
+func lastActivityAgo(ins insights.Insight) string {
+	if !ins.Found || ins.LastActivity.IsZero() {
+		return ""
+	}
+	return formatAgo(time.Since(ins.LastActivity))
+}
+
+// summaryLine is the dashboard's global usage bar. Token totals appear only
+// when transcripts actually provided them, never as a placeholder.
+func (m model) summaryLine() string {
+	if len(m.items) == 0 {
+		return ""
+	}
+	var running, waiting, stopped, working, tokens int
+	for _, it := range m.items {
+		switch it.state {
+		case session.Running:
+			running++
+		case session.Waiting:
+			waiting++
+		default:
+			stopped++
+		}
+		if it.working {
+			working++
+		}
+		tokens += it.insight.TodayTokens
+	}
+	parts := []string{fmt.Sprintf("%d workspaces", len(m.items))}
+	if running > 0 {
+		parts = append(parts, fmt.Sprintf("%d running", running))
+	}
+	if waiting > 0 {
+		parts = append(parts, fmt.Sprintf("%d waiting", waiting))
+	}
+	if stopped > 0 {
+		parts = append(parts, fmt.Sprintf("%d stopped", stopped))
+	}
+	if working > 0 {
+		parts = append(parts, fmt.Sprintf("%d working", working))
+	}
+	if tokens > 0 {
+		parts = append(parts, formatTokens(tokens)+" tokens today")
+	}
+	return metaStyle.Render(strings.Join(parts, "   ·   "))
+}
+
+// formatTokens renders a token count compactly: 950, 12k, 428k.
+func formatTokens(n int) string {
+	if n < 1000 {
+		return fmt.Sprintf("%d", n)
+	}
+	return fmt.Sprintf("%dk", (n+500)/1000)
+}
+
+// formatDuration renders an uptime as 5m, 2h14m, or 3d4h.
+func formatDuration(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return "<1m"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh%dm", int(d.Hours()), int(d.Minutes())%60)
+	default:
+		return fmt.Sprintf("%dd%dh", int(d.Hours())/24, int(d.Hours())%24)
+	}
+}
+
+// formatAgo renders how long ago something happened: 20s ago, 5m ago, 2h ago.
+func formatAgo(d time.Duration) string {
+	switch {
+	case d < 0:
+		return "just now"
+	case d < time.Minute:
+		return fmt.Sprintf("%ds ago", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours())/24)
+	}
 }
 
 // --- Pack selector ---------------------------------------------------------

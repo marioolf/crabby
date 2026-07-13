@@ -103,26 +103,27 @@ prepare projects · orchestrate claude · one terminal
 ──────────────────────────────────────────────────
 
 ▌ ● payments
-    feature/refunds
-    Waiting · working
+    Thinking…  ·  20s ago
+    feature/refunds  ·  up 2h14m  ·  Opus 4.8  ·  132k tok
 
   ● frontend
-    main
-    Waiting
+    Waiting for input  ·  8m ago
+    main  ·  Sonnet 5  ·  48k tok
 
   ○ docs
-    main
     Stopped
 
-────────────────────────────────────────────────
+──────────────────────────────────────────────────
+3 workspaces   ·   2 waiting   ·   1 stopped   ·   1 working   ·   180k tokens today
 enter open   n new   x stop   d remove
 r refresh   q quit   ·   F12 returns from a session
 ```
 
 The dashboard **refreshes automatically** (about once a second), sorts projects
-by importance (**Running → Waiting → Stopped**, then alphabetically), and marks
-sessions that are **currently producing output** with `· working`. State is
-colour-coded: green (running), yellow (waiting), grey (stopped).
+by importance (**Running → Waiting → Stopped**, then alphabetically), and shows
+what each workspace is doing right now. State is colour-coded: green (running),
+yellow (waiting), grey (stopped). See [Workspace insights](#workspace-insights)
+for what each line means and where the data comes from.
 
 - **Enter** opens the selected project in Claude. If it wasn't running, Crabby
   starts it for you.
@@ -137,6 +138,48 @@ colour-coded: green (running), yellow (waiting), grey (stopped).
 
 The return key is shown on a small Crabby status bar while you work, so you
 never have to remember it.
+
+## Workspace insights
+
+Crabby reads Claude Code's own session transcripts to show, at a glance, what is
+happening across every workspace — without attaching to a single one. Each
+workspace shows only the information that is actually available:
+
+```
+▌ ● payments
+    Thinking…  ·  20s ago                          ← activity  ·  last activity
+    feature/refunds  ·  up 2h14m  ·  Opus 4.8  ·  132k tok
+      branch          uptime        model          session tokens
+```
+
+And a global summary sits below the list:
+
+```
+3 workspaces   ·   2 waiting   ·   1 stopped   ·   1 working   ·   180k tokens today
+```
+
+**Where the data comes from — and how reliable it is:**
+
+| Metric | Source | Notes |
+| --- | --- | --- |
+| State (running / waiting / stopped) | tmux | Reliable. Running = attached, waiting = alive, stopped = no session. |
+| Activity (Thinking / Editing files / Reading files / Running command / Responding / Waiting for input / Idle) | Claude transcript tail + tmux "working" signal | Best-effort. Derived from the last recorded step, so it can lag the live terminal by a moment. Only the fine label; the coarse state is always reliable. |
+| Model | Claude transcript | Reliable — the model of the latest turn. |
+| Tokens (per workspace) | Claude transcript | Reliable. Input + output for the **current session** (cache tokens excluded). |
+| Tokens today (global summary) | Claude transcript | Reliable. Input + output across the workspace's transcripts **dated today**. |
+| Last activity | Claude transcript | Reliable — timestamp of the last recorded turn. |
+| Uptime | tmux | Reliable — how long the session has been alive. |
+| Branch | git (read directly) | Reliable when the folder is a git repository. |
+
+Every figure is **factual**: Crabby never estimates progress percentages or
+completion times, and it omits any field it cannot read reliably rather than
+showing a placeholder. Transcripts are read incrementally — only the bytes added
+since the last refresh — so the dashboard stays fast with many workspaces.
+
+Metrics that depend on Claude Code (activity, model, tokens, last activity)
+require Claude's transcript files under `~/.claude/projects/`. If Claude Code has
+never run in a workspace, those fields are simply absent and the workspace still
+shows its tmux state, branch, and uptime.
 
 ## Adopting existing projects
 
@@ -329,6 +372,7 @@ internal/
     cli/               # cobra commands
     initcmd/           # crabby init (+ pack application)
     importcmd/         # crabby import (workspace discovery)
+    insights/          # reads Claude transcripts for dashboard metrics
     pack/              # local project packs
     project/           # projects.json registry
     session/           # project <-> session mapping + state
