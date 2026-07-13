@@ -15,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/marioolf/crabby/internal/importcmd"
 	"github.com/marioolf/crabby/internal/pack"
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/session"
@@ -397,4 +398,152 @@ func (m packModel) View() string {
 	b.WriteString("\n")
 	b.WriteString(helpStyle.Render("↑/↓ move   enter select   q cancel"))
 	return center(m.width, b.String())
+}
+
+// --- Import selector -------------------------------------------------------
+
+type importModel struct {
+	workspaces []importcmd.Workspace
+	selected   []bool
+	cursor     int
+	width      int
+	confirmed  bool // Enter pressed — import the selection
+}
+
+// SelectImports shows the discovered workspaces and lets the user choose which
+// to import. It returns the chosen workspaces and whether the user cancelled.
+// Already-imported workspaces are shown for context but can never be selected.
+func SelectImports(workspaces []importcmd.Workspace) (chosen []importcmd.Workspace, cancelled bool, err error) {
+	selected := make([]bool, len(workspaces))
+	for i, w := range workspaces {
+		// Default everything importable to checked — adopting a whole folder of
+		// repos should take one keypress, not one per project.
+		selected[i] = !w.Imported
+	}
+
+	final, runErr := tea.NewProgram(
+		importModel{workspaces: workspaces, selected: selected},
+		tea.WithAltScreen(),
+	).Run()
+	if runErr != nil {
+		return nil, false, runErr
+	}
+	m := final.(importModel)
+	if !m.confirmed {
+		return nil, true, nil
+	}
+	for i, w := range m.workspaces {
+		if m.selected[i] && !w.Imported {
+			chosen = append(chosen, w)
+		}
+	}
+	return chosen, false, nil
+}
+
+func (m importModel) Init() tea.Cmd { return nil }
+
+func (m importModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if ws, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width = ws.Width
+		return m, nil
+	}
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+	switch key.String() {
+	case "q", "ctrl+c", "esc":
+		return m, tea.Quit
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "down", "j":
+		if m.cursor < len(m.workspaces)-1 {
+			m.cursor++
+		}
+	case " ":
+		// Already-imported workspaces are locked — there is nothing to toggle.
+		if !m.workspaces[m.cursor].Imported {
+			m.selected[m.cursor] = !m.selected[m.cursor]
+		}
+	case "a":
+		m.toggleAll()
+	case "enter":
+		m.confirmed = true
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+// toggleAll selects every importable workspace, or clears them if all are
+// already selected.
+func (m *importModel) toggleAll() {
+	allOn := true
+	for i, w := range m.workspaces {
+		if !w.Imported && !m.selected[i] {
+			allOn = false
+			break
+		}
+	}
+	for i, w := range m.workspaces {
+		if !w.Imported {
+			m.selected[i] = !allOn
+		}
+	}
+}
+
+func (m importModel) View() string {
+	var b strings.Builder
+	b.WriteString(Banner())
+	b.WriteString("\n\n")
+	b.WriteString(divider())
+	b.WriteString("\n\n")
+	b.WriteString(wordmarkStyle.Render("Import Claude workspaces"))
+	b.WriteString("\n")
+	b.WriteString(metaStyle.Render(fmt.Sprintf("Found %s.", plural(len(m.workspaces), "workspace"))))
+	b.WriteString("\n\n")
+
+	for i, w := range m.workspaces {
+		bar := "  "
+		name := nameStyle.Render(w.Name)
+		if i == m.cursor {
+			bar = barStyle.Render("▌ ")
+			name = selNameStyle.Render(w.Name)
+		}
+		b.WriteString(fmt.Sprintf("%s%s %s", bar, checkbox(w.Imported, m.selected[i]), name))
+		if w.Imported {
+			b.WriteString("  " + metaStyle.Render("already imported"))
+		} else if w.Branch != "" {
+			b.WriteString("  " + metaStyle.Render(w.Branch))
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(divider())
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("space select   a all   enter import   q cancel"))
+	return center(m.width, b.String())
+}
+
+// checkbox renders an item's selection state: a locked tick for workspaces that
+// are already imported, otherwise a normal on/off box.
+func checkbox(imported, selected bool) string {
+	switch {
+	case imported:
+		return metaStyle.Render("[✓]")
+	case selected:
+		return barStyle.Render("[x]")
+	default:
+		return "[ ]"
+	}
+}
+
+// plural formats a count with its noun, adding an "s" for anything but one.
+func plural(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }

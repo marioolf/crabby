@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-13
+
+### Added
+
+- **`crabby import`.** Adopt existing Claude Code repositories in bulk. It scans
+  a directory tree for git repositories that already contain a `CLAUDE.md` and
+  presents them in an interactive selector (space to choose, Enter to import) —
+  so a folder full of repos becomes Crabby workspaces in seconds. Already-imported
+  projects are shown as such and can't be added twice. Scan the current directory
+  with `crabby import`, or a specific one with `crabby import <path>`.
+- **`crabby init <path>`.** `init` now takes an optional directory, so a project
+  can be initialized without `cd`-ing into it first. With no argument it still
+  initializes the current directory.
+
+### Changed
+
+- Imported workspaces behave identically to ones created with `crabby init`; the
+  dashboard makes no distinction.
+
 ## [0.4.3] - 2026-07-12
 
 ### Changed

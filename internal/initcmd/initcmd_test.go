@@ -64,3 +64,15 @@ func TestInitDoesNotClobberExistingClaudeMD(t *testing.T) {
 		t.Fatalf("CLAUDE.md was overwritten: %q", got)
 	}
 }
+
+func TestInitRejectsMissingDirectory(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	missing := filepath.Join(t.TempDir(), "does-not-exist")
+	if _, err := Init(missing, nil); err == nil {
+		t.Fatal("expected an error for a non-existent directory")
+	}
+	if _, err := os.Stat(missing); !os.IsNotExist(err) {
+		t.Fatal("Init created a directory that should not exist")
+	}
+}

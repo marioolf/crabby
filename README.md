@@ -83,6 +83,9 @@ cd my-project
 crabby init
 ```
 
+Already have repositories with a `CLAUDE.md`? Adopt them without changing
+anything about how they work — see [Adopting existing projects](#adopting-existing-projects).
+
 Then just run Crabby:
 
 ```bash
@@ -135,12 +138,67 @@ colour-coded: green (running), yellow (waiting), grey (stopped).
 The return key is shown on a small Crabby status bar while you work, so you
 never have to remember it.
 
+## Adopting existing projects
+
+If you already use Claude Code, you probably have repositories with a
+`CLAUDE.md` in them. You don't need to recreate them — bring them in as they
+are.
+
+**One project** — point `init` at it (no need to `cd` first):
+
+```bash
+crabby init ~/repos/payments
+```
+
+**A whole folder of them** — let Crabby find them:
+
+```bash
+crabby import ~/repos
+```
+
+`import` scans the tree for git repositories that contain a `CLAUDE.md` and
+shows what it found. Pick the ones you want and press Enter:
+
+```
+       (\/)    (\/)
+         \(o..o)/
+         /`----'\
+
+       C R A B B Y
+Many Claudes. One shell.
+
+Import Claude workspaces
+Found 4 workspaces.
+
+▌ [x] ai-security   main
+  [x] frontend      main
+  [✓] payments      already imported
+  [ ] old-test      wip/spike
+
+────────────────────────────────────
+space select   a all   enter import   q cancel
+```
+
+- **Space** toggles a workspace; **a** toggles all.
+- Projects you've already imported show `[✓]` and can't be added twice.
+- Everything importable starts checked, so adopting a folder is usually just
+  `crabby import ~/repos` then **Enter**.
+
+Import never edits your repositories — it registers them and writes Crabby's own
+`.claude/crabby.yaml`, leaving your existing `CLAUDE.md` and workflow untouched.
+Imported projects behave exactly like ones created with `crabby init`.
+
+`import` skips the obvious noise while scanning — `.git`, `node_modules`,
+`.venv`, `vendor`, and similar — and treats each git repository as a single
+unit, so nested repositories inside one aren't imported separately.
+
 ## Commands
 
 | Command | What it does |
 | --- | --- |
 | `crabby` | Open the home screen (this is all you normally need). |
-| `crabby init` | Register the current directory as a project (creates `.claude/crabby.yaml` and `CLAUDE.md`). |
+| `crabby init [path]` | Register a project (the current directory, or `path`). Creates `.claude/crabby.yaml`, and a starter `CLAUDE.md` if none exists. |
+| `crabby import [path]` | Discover git repositories that already have a `CLAUDE.md` and import the ones you pick (the current directory, or `path`). |
 | `crabby ps` | Alias for `crabby`. |
 | `crabby attach [project]` | Open a specific project's session directly. |
 | `crabby start [project]` | Same as attach — launches the session if needed. |
@@ -268,11 +326,12 @@ cmd/
 internal/
     cli/               # cobra commands
     initcmd/           # crabby init (+ pack application)
+    importcmd/         # crabby import (workspace discovery)
     pack/              # local project packs
     project/           # projects.json registry
     session/           # project <-> session mapping + state
     tmux/              # tmux driver (dedicated socket, F12 detach, status bar)
-    tui/               # bubble tea home screen + pack selector
+    tui/               # bubble tea home screen + pack/import selectors
     doctor/            # environment checks
     config/            # global config
     version/           # version (single source of truth: VERSION file)
