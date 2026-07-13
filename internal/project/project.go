@@ -7,19 +7,64 @@ package project
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ErrNotFound is returned when a project cannot be located in the registry.
 var ErrNotFound = errors.New("project not found")
 
-// Project is a single registered project.
+// ErrTaskExists is returned when a task name is already taken in a workspace.
+var ErrTaskExists = errors.New("a task with that name already exists")
+
+// DefaultTask is the implicit task every workspace starts with, so a workspace
+// with a single session looks and behaves exactly like it did before tasks
+// existed. Its session keeps the legacy "crabby_<workspace>" name.
+const DefaultTask = "main"
+
+// Task is one Claude Code session inside a workspace. A workspace may hold
+// several, each an independent session sharing the same project directory.
+type Task struct {
+	Name    string    `json:"name"`
+	Session string    `json:"session"`
+	Created time.Time `json:"created,omitempty"`
+}
+
+// Project is a registered workspace. It owns one or more tasks; the legacy
+// Session field is kept only so older registries migrate cleanly.
 type Project struct {
 	Name    string `json:"name"`
 	Path    string `json:"path"`
-	Session string `json:"session"`
+	Session string `json:"session,omitempty"` // legacy single session (pre-tasks)
+	Tasks   []Task `json:"tasks,omitempty"`
+}
+
+// withTasks fills in the implicit default task for a workspace that has none,
+// mapping it onto the legacy session name so existing sessions are still
+// recognised. This runs on load, so callers always see at least one task.
+func (p Project) withTasks() Project {
+	if len(p.Tasks) > 0 {
+		return p
+	}
+	legacy := p.Session
+	if legacy == "" {
+		legacy = "crabby_" + p.Name
+	}
+	p.Tasks = []Task{{Name: DefaultTask, Session: legacy}}
+	return p
+}
+
+// Task returns the named task within the workspace.
+func (p Project) Task(name string) (Task, bool) {
+	for _, t := range p.Tasks {
+		if t.Name == name {
+			return t, true
+		}
+	}
+	return Task{}, false
 }
 
 // dbPath returns the location of the registry file.
@@ -53,6 +98,9 @@ func Load() ([]Project, error) {
 	}
 	if err := json.Unmarshal(data, &projects); err != nil {
 		return nil, err
+	}
+	for i := range projects {
+		projects[i] = projects[i].withTasks()
 	}
 	return projects, nil
 }
@@ -124,10 +172,62 @@ func Find(name string) (Project, error) {
 	}
 	for _, p := range projects {
 		if p.Name == name {
-			return p, nil
+			return p.withTasks(), nil
 		}
 	}
 	return Project{}, ErrNotFound
+}
+
+// AddTask registers a new task in a workspace. It fails if the workspace is
+// unknown or the task name is already taken.
+func AddTask(workspace string, t Task) error {
+	projects, err := Load()
+	if err != nil {
+		return err
+	}
+	for i := range projects {
+		if projects[i].Name != workspace {
+			continue
+		}
+		if _, exists := projects[i].Task(t.Name); exists {
+			return ErrTaskExists
+		}
+		projects[i].Tasks = append(projects[i].Tasks, t)
+		return Save(projects)
+	}
+	return ErrNotFound
+}
+
+// RemoveTask forgets a task. Removing the last task leaves the workspace itself
+// in place, ready to accept new tasks.
+func RemoveTask(workspace, taskName string) error {
+	projects, err := Load()
+	if err != nil {
+		return err
+	}
+	for i := range projects {
+		if projects[i].Name != workspace {
+			continue
+		}
+		kept := projects[i].Tasks[:0]
+		found := false
+		for _, t := range projects[i].Tasks {
+			if t.Name == taskName {
+				found = true
+				continue
+			}
+			kept = append(kept, t)
+		}
+		if !found {
+			return fmt.Errorf("task %q not found in %q", taskName, workspace)
+		}
+		// Drop the legacy field so a fully task-managed workspace stops
+		// resurrecting the old default on the next load.
+		projects[i].Tasks = kept
+		projects[i].Session = ""
+		return Save(projects)
+	}
+	return ErrNotFound
 }
 
 // Branch returns the current git branch for display, or "" if the project is

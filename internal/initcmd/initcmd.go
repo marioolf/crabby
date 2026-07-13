@@ -57,9 +57,11 @@ func Init(dir string, p *pack.Pack) (Result, error) {
 
 	name := filepath.Base(abs)
 	proj := project.Project{
-		Name:    name,
-		Path:    abs,
-		Session: session.Name(name),
+		Name: name,
+		Path: abs,
+		Tasks: []project.Task{
+			{Name: project.DefaultTask, Session: session.Name(name)},
+		},
 	}
 	res := Result{Project: proj}
 
@@ -88,7 +90,7 @@ func Init(dir string, p *pack.Pack) (Result, error) {
 
 	// Crabby owns .claude/crabby.yaml (project metadata for the registry), so it
 	// is always written with the correct values regardless of the pack.
-	meta := fmt.Sprintf("name: %s\npath: %s\nsession: %s\n", proj.Name, proj.Path, proj.Session)
+	meta := fmt.Sprintf("name: %s\npath: %s\nsession: %s\n", proj.Name, proj.Path, proj.Tasks[0].Session)
 	if err := os.WriteFile(filepath.Join(claudeDir, "crabby.yaml"), []byte(meta), 0o644); err != nil {
 		return res, err
 	}

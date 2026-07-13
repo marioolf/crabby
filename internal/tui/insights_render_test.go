@@ -15,11 +15,14 @@ func TestViewRendersInsightsAndSummary(t *testing.T) {
 		insights: insights.New(),
 		items: []item{
 			{
-				project: project.Project{Name: "payments"},
-				state:   session.Waiting,
-				branch:  "main",
-				working: true,
-				uptime:  2*time.Hour + 14*time.Minute,
+				workspace:  project.Project{Name: "payments"},
+				task:       project.Task{Name: "main"},
+				kind:       rowSingle,
+				groupStart: true,
+				state:      session.Waiting,
+				branch:     "main",
+				working:    true,
+				uptime:     2*time.Hour + 14*time.Minute,
 				insight: insights.Insight{
 					Found:         true,
 					Model:         "Opus 4.8",
@@ -30,7 +33,7 @@ func TestViewRendersInsightsAndSummary(t *testing.T) {
 					Detail:        "Edit",
 				},
 			},
-			{project: project.Project{Name: "docs"}, state: session.Stopped},
+			{workspace: project.Project{Name: "docs"}, task: project.Task{Name: "main"}, kind: rowSingle, groupStart: true, state: session.Stopped},
 		},
 	}
 
@@ -54,11 +57,38 @@ func TestViewRendersInsightsAndSummary(t *testing.T) {
 	}
 }
 
+func TestMultiTaskGroupingAndNavigation(t *testing.T) {
+	pay := project.Project{Name: "payments"}
+	m := model{
+		insights: insights.New(),
+		items: []item{
+			{workspace: pay, kind: rowHeader, groupStart: true, branch: "main"},
+			{workspace: pay, task: project.Task{Name: "refactor"}, kind: rowTask, state: session.Waiting, working: true},
+			{workspace: pay, task: project.Task{Name: "tests"}, kind: rowTask, state: session.Stopped},
+		},
+	}
+
+	// The header is not selectable; navigation lands on task rows only.
+	if m.selectable(0) {
+		t.Error("header row should not be selectable")
+	}
+	if n := m.nextSelectable(0, 1); n != 1 {
+		t.Errorf("nextSelectable from header = %d, want 1", n)
+	}
+
+	out := m.View()
+	for _, want := range []string{"payments", "refactor", "tests", "Working", "Stopped"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("View() missing %q", want)
+		}
+	}
+}
+
 func TestViewWithoutTranscriptFallsBack(t *testing.T) {
 	m := model{
 		insights: insights.New(),
 		items: []item{
-			{project: project.Project{Name: "plain"}, state: session.Waiting},
+			{workspace: project.Project{Name: "plain"}, task: project.Task{Name: "main"}, kind: rowSingle, groupStart: true, state: session.Waiting},
 		},
 	}
 	out := m.View()

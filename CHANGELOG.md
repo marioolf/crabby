@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-13
+
+### Added
+
+- **Multiple tasks per workspace.** A workspace can now hold several independent
+  Claude sessions ("tasks") that share the same project directory — work on a
+  refactor, tests, and docs in parallel without cloning the repo. New commands:
+  - `crabby task create <name>` — start a new task and open it.
+  - `crabby task list [workspace]` — list a workspace's tasks and their state.
+  - `crabby task delete <name> [workspace]` — remove a task (the workspace stays).
+  - `crabby task restart <name> [workspace]` — stop and relaunch a task.
+- `crabby attach [workspace] [task]` now asks which task to open when a
+  workspace has more than one; pass the task name to skip the prompt.
+- The dashboard groups tasks beneath their workspace and adds a **t** key to
+  start a new task in the selected workspace.
+
+### Changed
+
+- **Dashboard redesign.** The banner stays centred, but the workspace list and
+  footer are now left-aligned like a normal CLI, with each workspace's data laid
+  out in a column to the right of its name. Action keys in the footer are
+  highlighted so they read distinctly from the informational usage summary.
+- Session names for named tasks are generated automatically as
+  `crabby_<workspace>_<task>`; the default task keeps the `crabby_<workspace>`
+  name so single-task workspaces are unchanged.
+
+### Notes
+
+- Existing single-task workspaces migrate automatically: each becomes a
+  workspace with one default "main" task on its original session. No action is
+  required.
+- With several tasks sharing one directory, transcript-derived detail (model,
+  tokens, fine activity) is shown at the workspace level; per-task rows show the
+  reliable tmux state, since Claude's transcripts can't be attributed to a
+  specific tmux session.
+
 ## [0.6.0] - 2026-07-13
 
 ### Added

@@ -24,8 +24,9 @@ func TestInitCreatesStructureAndRegisters(t *testing.T) {
 	if res.Project.Name != "payments" {
 		t.Fatalf("name = %q, want payments", res.Project.Name)
 	}
-	if res.Project.Session != "crabby_payments" {
-		t.Fatalf("session = %q", res.Project.Session)
+	// A fresh workspace starts with a single default task on the legacy session.
+	if len(res.Project.Tasks) != 1 || res.Project.Tasks[0].Session != "crabby_payments" {
+		t.Fatalf("tasks = %+v, want one default task on crabby_payments", res.Project.Tasks)
 	}
 
 	for _, f := range []string{
