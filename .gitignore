@@ -13,3 +13,8 @@ coverage.*
 .idea/
 .vscode/
 *.swp
+
+# Local-only Claude context (not shipped with the repo)
+/CLAUDE.md
+/.claude/
+/TechnicalDocument.md
