@@ -141,22 +141,18 @@ function Invoke-CrabbyInstall {
     }
     Write-Ok "Ubuntu distribution found"
 
-    # --- Install the Linux binary inside WSL if missing --------------------
+    # --- Install / update the Linux binary inside WSL ----------------------
+    # install.sh always fetches the latest release and overwrites in place, so
+    # run it unconditionally. Skipping when crabby was already present is what
+    # used to leave existing installs stuck on the old version.
     Write-Host "Setting up the Linux crabby binary inside WSL..." -ForegroundColor Cyan
-    wsl bash -lc "command -v crabby >/dev/null 2>&1"
+    wsl bash -lc "curl -fsSL https://raw.githubusercontent.com/$Repo/main/install.sh | bash"
     if ($LASTEXITCODE -eq 0) {
-        Write-Ok "Linux crabby is already installed in WSL"
+        Write-Ok "Linux crabby is installed and up to date in WSL"
     }
     else {
-        Write-Host "   Installing Linux crabby inside WSL..."
-        wsl bash -lc "curl -fsSL https://raw.githubusercontent.com/$Repo/main/install.sh | bash"
-        if ($LASTEXITCODE -eq 0) {
-            Write-Ok "Linux crabby installed in WSL"
-        }
-        else {
-            Write-Warn "Could not auto-install inside WSL. Run this inside WSL:"
-            Write-Warn "  curl -fsSL https://raw.githubusercontent.com/$Repo/main/install.sh | bash"
-        }
+        Write-Warn "Could not auto-install inside WSL. Run this inside WSL:"
+        Write-Warn "  curl -fsSL https://raw.githubusercontent.com/$Repo/main/install.sh | bash"
     }
 
     Write-Host ""

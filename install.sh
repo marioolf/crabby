@@ -31,7 +31,8 @@ main() {
 	local asset="${BINARY}_linux_${arch}.tar.gz"
 	local url="https://github.com/${REPO}/releases/latest/download/${asset}"
 
-	local tmp
+	# tmp is intentionally not `local`: the EXIT trap runs after main returns,
+	# where a function-local would be out of scope and trip `set -u`.
 	tmp="$(mktemp -d)"
 	trap 'rm -rf "$tmp"' EXIT
 
