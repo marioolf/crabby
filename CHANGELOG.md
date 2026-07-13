@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Windows installer now upgrades an existing install.** `install.ps1` used to
+  skip the Linux binary whenever a `crabby` was already present in WSL, so
+  re-running the installer never updated it. It now always runs `install.sh`,
+  which overwrites in place with the latest release.
+- `install.sh` no longer prints `tmp: unbound variable` on exit; the cleanup
+  trap referenced a function-local variable that was out of scope by the time it
+  ran under `set -u`.
+
 ## [0.5.0] - 2026-07-13
 
 ### Added
