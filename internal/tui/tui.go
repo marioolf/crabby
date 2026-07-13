@@ -387,52 +387,46 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// frame places the centred banner above left-aligned content, so the identity
-// stays centred while the working area reads like a normal CLI.
-func (m model) frame(content string) string {
-	banner := Banner()
-	if m.width > 0 {
-		banner = lipgloss.PlaceHorizontal(m.width, lipgloss.Center, banner)
-	}
-	return banner + "\n\n" + content
-}
-
 func (m model) View() string {
+	// Everything is centred on the terminal. Standalone lines (banner, dividers,
+	// summary, footer) centre individually; the workspace list centres as one
+	// block so its columns stay left-aligned.
 	var b strings.Builder
-	b.WriteString(divider())
+	b.WriteString(center(m.width, Banner()))
+	b.WriteString("\n\n")
+	b.WriteString(center(m.width, divider()))
 	b.WriteString("\n\n")
 
 	if len(m.items) == 0 {
-		b.WriteString("No workspaces yet.\n\n")
-		b.WriteString(metaStyle.Render("Run  crabby init  inside a project,\n"))
-		b.WriteString(metaStyle.Render("or press  n  to add the current directory.\n\n"))
-		b.WriteString(divider())
-		b.WriteString("\n")
-		b.WriteString(actionKey("n", "new") + "   " + actionKey("q", "quit"))
-		return m.frame(b.String())
+		b.WriteString(center(m.width, "No workspaces yet.") + "\n\n")
+		b.WriteString(center(m.width, metaStyle.Render("Run  crabby init  inside a project,")) + "\n")
+		b.WriteString(center(m.width, metaStyle.Render("or press  n  to add the current directory.")) + "\n\n")
+		b.WriteString(center(m.width, divider()) + "\n")
+		b.WriteString(center(m.width, actionKey("n", "new")+"   "+actionKey("q", "quit")))
+		return b.String()
 	}
 
-	b.WriteString(m.renderRows())
+	b.WriteString(blockCenter(m.width, m.renderRows()))
 	b.WriteString("\n")
-	b.WriteString(divider())
+	b.WriteString(center(m.width, divider()))
 	b.WriteString("\n")
 	if summary := m.summaryLine(); summary != "" {
-		b.WriteString(summary + "\n\n")
+		b.WriteString(center(m.width, summary) + "\n\n")
 	}
 	switch m.confirm {
 	case confirmStop:
-		b.WriteString(confirmStyle.Render(fmt.Sprintf("Stop \"%s\"? (y/n)", m.items[m.cursor].displayName())))
-		return m.frame(b.String())
+		b.WriteString(center(m.width, confirmStyle.Render(fmt.Sprintf("Stop \"%s\"? (y/n)", m.items[m.cursor].displayName()))))
+		return b.String()
 	case confirmRemoveTask:
 		it := m.items[m.cursor]
-		b.WriteString(confirmStyle.Render(fmt.Sprintf("Remove task \"%s\" from %q? (y/n)", it.task.Name, it.workspace.Name)))
-		return m.frame(b.String())
+		b.WriteString(center(m.width, confirmStyle.Render(fmt.Sprintf("Remove task \"%s\" from %q? (y/n)", it.task.Name, it.workspace.Name))))
+		return b.String()
 	case confirmRemoveWorkspace:
-		b.WriteString(confirmStyle.Render(fmt.Sprintf("Remove workspace \"%s\" from Crabby? Files are kept. (y/n)", m.items[m.cursor].workspace.Name)))
-		return m.frame(b.String())
+		b.WriteString(center(m.width, confirmStyle.Render(fmt.Sprintf("Remove workspace \"%s\" from Crabby? Files are kept. (y/n)", m.items[m.cursor].workspace.Name))))
+		return b.String()
 	}
-	b.WriteString(m.helpLines())
-	return m.frame(b.String())
+	b.WriteString(center(m.width, m.helpLines()))
+	return b.String()
 }
 
 // renderRows lays every workspace/task line out in two columns: the name on the
@@ -463,6 +457,33 @@ func (m model) renderRows() string {
 		}
 	}
 	return b.String()
+}
+
+// blockCenter centres a multi-line block as a unit: every line gets the same
+// left margin, so the block sits in the middle while its internal left-aligned
+// columns stay aligned (unlike per-line centring, which lets each line drift).
+func blockCenter(width int, s string) string {
+	if width <= 0 {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	blockWidth := 0
+	for _, l := range lines {
+		if w := lipgloss.Width(l); w > blockWidth {
+			blockWidth = w
+		}
+	}
+	margin := (width - blockWidth) / 2
+	if margin <= 0 {
+		return s
+	}
+	pad := strings.Repeat(" ", margin)
+	for i, l := range lines {
+		if l != "" {
+			lines[i] = pad + l
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // helpLines renders the footer with action keys highlighted so they read as
