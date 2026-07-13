@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/marioolf/crabby/internal/insights"
 	"github.com/marioolf/crabby/internal/pack"
 	"github.com/marioolf/crabby/internal/project"
+	"github.com/marioolf/crabby/internal/session"
 	"github.com/marioolf/crabby/internal/tmux"
 	"github.com/marioolf/crabby/internal/tui"
 	"github.com/marioolf/crabby/internal/version"
@@ -55,6 +57,7 @@ func newRootCmd() *cobra.Command {
 	root.AddCommand(
 		newInitCmd(),
 		newImportCmd(),
+		newTaskCmd(),
 		newPsCmd(),
 		newAttachCmd(),
 		newStartCmd(),
@@ -90,15 +93,35 @@ func home() error {
 		case tui.ActionQuit:
 			return nil
 		case tui.ActionOpen:
-			if err := openSession(cfg, t, *res.Project); err != nil {
+			if err := openTask(cfg, t, *res.Project, *res.Task); err != nil {
 				pause(err)
 			}
 		case tui.ActionNewProject:
 			if err := newProject(); err != nil {
 				pause(err)
 			}
+		case tui.ActionNewTask:
+			if err := newTaskInteractive(cfg, t, *res.Project); err != nil {
+				pause(err)
+			}
 		}
 	}
+}
+
+// newTaskInteractive is the dashboard's "t" key: ask for a task name, create it,
+// and open it — so a parallel session starts without leaving Crabby.
+func newTaskInteractive(cfg config.Config, t tmux.Client, p project.Project) error {
+	fmt.Printf("New task in %q.\nTask name: ", p.Name)
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	name := strings.TrimSpace(line)
+	if name == "" {
+		return nil
+	}
+	tk, err := createTask(p, name)
+	if err != nil {
+		return err
+	}
+	return openTask(cfg, t, p, tk)
 }
 
 // pause shows a problem and waits, so it isn't lost when the home screen
@@ -173,24 +196,89 @@ func printInitSummary(res initcmd.Result) {
 	}
 }
 
-// openSession launches Claude for a project if needed and attaches to it,
-// blocking until the user leaves. Selecting a project is all it takes — a
-// stopped project is started automatically.
-func openSession(cfg config.Config, t tmux.Client, p project.Project) error {
-	if !t.HasSession(p.Session) {
+// openTask launches Claude for a task if its session isn't running yet and
+// attaches to it, blocking until the user leaves. All tasks in a workspace
+// share the same project directory.
+func openTask(cfg config.Config, t tmux.Client, p project.Project, task project.Task) error {
+	if !t.HasSession(task.Session) {
 		if _, err := lookClaude(cfg); err != nil {
 			return err
 		}
-		if err := t.NewSession(p.Session, p.Path, cfg.ClaudeCommand); err != nil {
-			return fmt.Errorf("could not start a session for %q: %w", p.Name, err)
+		if err := t.NewSession(task.Session, p.Path, cfg.ClaudeCommand); err != nil {
+			return fmt.Errorf("could not start task %q in %q: %w", task.Name, p.Name, err)
 		}
-		// Show the project name in the status bar, not the command.
-		_ = t.RenameWindow(p.Session, p.Name)
+		// Show the workspace (and task, when named) in the status bar.
+		_ = t.RenameWindow(task.Session, windowLabel(p, task))
 	}
 	// Best-effort: brand the session and enable the return key. A failure here
 	// only means the status bar is plain, so don't block the attach.
 	_ = t.Configure(cfg.DetachKey)
-	return t.AttachChild(p.Session)
+	return t.AttachChild(task.Session)
+}
+
+// windowLabel is what shows in the tmux status bar: just the workspace for the
+// default task, workspace:task otherwise.
+func windowLabel(p project.Project, task project.Task) string {
+	if task.Name == project.DefaultTask {
+		return p.Name
+	}
+	return p.Name + ":" + task.Name
+}
+
+// createTask validates a name, generates its session, and registers it in the
+// workspace. It does not start the session — the caller opens it.
+func createTask(p project.Project, name string) (project.Task, error) {
+	if err := validateTaskName(name); err != nil {
+		return project.Task{}, err
+	}
+	tk := project.Task{
+		Name:    name,
+		Session: session.TaskSession(p.Name, name),
+		Created: time.Now(),
+	}
+	if err := project.AddTask(p.Name, tk); err != nil {
+		return project.Task{}, fmt.Errorf("creating task %q: %w", name, err)
+	}
+	return tk, nil
+}
+
+// validateTaskName keeps task names safe for tmux session names and readable in
+// the tree.
+func validateTaskName(name string) error {
+	if name == "" {
+		return fmt.Errorf("a task name is required")
+	}
+	for _, r := range name {
+		ok := r == '-' || r == '_' ||
+			(r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+		if !ok {
+			return fmt.Errorf("task names may only contain letters, digits, '-' and '_' (got %q)", name)
+		}
+	}
+	return nil
+}
+
+// chooseTask resolves which task to act on: an explicit name, the only task, or
+// an interactive pick when several exist. The bool reports cancellation.
+func chooseTask(p project.Project, taskArg string) (project.Task, bool, error) {
+	if taskArg != "" {
+		tk, ok := p.Task(taskArg)
+		if !ok {
+			return project.Task{}, false, fmt.Errorf("task %q not found in %q", taskArg, p.Name)
+		}
+		return tk, false, nil
+	}
+	if len(p.Tasks) == 1 {
+		return p.Tasks[0], false, nil
+	}
+	chosen, err := tui.SelectTask(p.Name, p.Tasks)
+	if err != nil {
+		return project.Task{}, false, err
+	}
+	if chosen == nil {
+		return project.Task{}, true, nil
+	}
+	return *chosen, false, nil
 }
 
 func newVersionCmd() *cobra.Command {
@@ -294,6 +382,133 @@ func pluralWord(n int, noun string) string {
 	return fmt.Sprintf("%d %ss", n, noun)
 }
 
+// newTaskCmd groups the task lifecycle: several independent Claude sessions may
+// run inside one workspace, each its own task sharing the project directory.
+func newTaskCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "task",
+		Short: "Manage tasks — parallel Claude sessions inside one workspace",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
+	}
+	cmd.AddCommand(
+		newTaskCreateCmd(),
+		newTaskListCmd(),
+		newTaskDeleteCmd(),
+		newTaskRestartCmd(),
+	)
+	return cmd
+}
+
+func newTaskCreateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "create <name>",
+		Short: "Create a task in the current workspace and open it",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			t := tmux.New(cfg.TmuxBinary)
+			if !t.Available() {
+				return errTmuxMissing(cfg.TmuxBinary)
+			}
+			p, err := resolveProject("")
+			if err != nil {
+				return err
+			}
+			tk, err := createTask(p, args[0])
+			if err != nil {
+				return err
+			}
+			return openTask(cfg, t, p, tk)
+		},
+	}
+}
+
+func newTaskListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list [workspace]",
+		Short: "List the tasks in a workspace",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			p, err := resolveProject(arg(args, 0))
+			if err != nil {
+				return err
+			}
+			cfg, _ := config.Load()
+			t := tmux.New(cfg.TmuxBinary)
+			fmt.Println(p.Name)
+			for _, tk := range p.Tasks {
+				state := session.Classify(t.Available() && t.HasSession(tk.Session), false)
+				fmt.Printf("  %-16s %s\n", tk.Name, state)
+			}
+			return nil
+		},
+	}
+}
+
+func newTaskDeleteCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete <name> [workspace]",
+		Short: "Delete a task (stops its session; the workspace stays)",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, _ := config.Load()
+			p, err := resolveProject(arg(args, 1))
+			if err != nil {
+				return err
+			}
+			tk, ok := p.Task(args[0])
+			if !ok {
+				return fmt.Errorf("task %q not found in %q", args[0], p.Name)
+			}
+			t := tmux.New(cfg.TmuxBinary)
+			if t.Available() && t.HasSession(tk.Session) {
+				_ = t.KillSession(tk.Session)
+			}
+			if err := project.RemoveTask(p.Name, tk.Name); err != nil {
+				return err
+			}
+			fmt.Printf("Deleted task %q from %q.\n", tk.Name, p.Name)
+			return nil
+		},
+	}
+}
+
+func newTaskRestartCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "restart <name> [workspace]",
+		Short: "Stop a task's session and start it fresh",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return err
+			}
+			t := tmux.New(cfg.TmuxBinary)
+			if !t.Available() {
+				return errTmuxMissing(cfg.TmuxBinary)
+			}
+			p, err := resolveProject(arg(args, 1))
+			if err != nil {
+				return err
+			}
+			tk, ok := p.Task(args[0])
+			if !ok {
+				return fmt.Errorf("task %q not found in %q", args[0], p.Name)
+			}
+			if t.HasSession(tk.Session) {
+				_ = t.KillSession(tk.Session)
+			}
+			return openTask(cfg, t, p, tk)
+		},
+	}
+}
+
 // newPsCmd keeps `crabby ps` working as an alias for the home screen.
 func newPsCmd() *cobra.Command {
 	return &cobra.Command{
@@ -308,62 +523,59 @@ func newPsCmd() *cobra.Command {
 
 func newAttachCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "attach [project]",
-		Short: "Open a project's Claude session directly",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.Load()
-			if err != nil {
-				return err
-			}
-			t := tmux.New(cfg.TmuxBinary)
-			if !t.Available() {
-				return errTmuxMissing(cfg.TmuxBinary)
-			}
-			p, err := resolveProject(args)
-			if err != nil {
-				return err
-			}
-			return openSession(cfg, t, p)
-		},
+		Use:   "attach [workspace] [task]",
+		Short: "Open a workspace's Claude session (asks which task when several exist)",
+		Args:  cobra.MaximumNArgs(2),
+		RunE:  attachRun,
 	}
 }
 
 func newStartCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "start [project]",
-		Short: "Launch Claude for a project and open it",
-		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.Load()
-			if err != nil {
-				return err
-			}
-			t := tmux.New(cfg.TmuxBinary)
-			if !t.Available() {
-				return errTmuxMissing(cfg.TmuxBinary)
-			}
-			p, err := resolveProject(args)
-			if err != nil {
-				return err
-			}
-			return openSession(cfg, t, p)
-		},
+		Use:   "start [workspace] [task]",
+		Short: "Launch Claude for a workspace task and open it",
+		Args:  cobra.MaximumNArgs(2),
+		RunE:  attachRun,
 	}
+}
+
+// attachRun backs both `attach` and `start`: resolve the workspace, pick a task
+// (directly, or via a selector when several exist), and open it.
+func attachRun(cmd *cobra.Command, args []string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	t := tmux.New(cfg.TmuxBinary)
+	if !t.Available() {
+		return errTmuxMissing(cfg.TmuxBinary)
+	}
+	p, err := resolveProject(arg(args, 0))
+	if err != nil {
+		return err
+	}
+	task, cancelled, err := chooseTask(p, arg(args, 1))
+	if err != nil {
+		return err
+	}
+	if cancelled {
+		return nil
+	}
+	return openTask(cfg, t, p, task)
 }
 
 func newRmCmd() *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
-		Use:   "rm [project]",
-		Short: "Remove a project from Crabby (does not delete files)",
+		Use:   "rm [workspace]",
+		Short: "Remove a workspace from Crabby (stops its tasks; does not delete files)",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.Load()
 			if err != nil {
 				return err
 			}
-			p, err := resolveProject(args)
+			p, err := resolveProject(arg(args, 0))
 			if err != nil {
 				return err
 			}
@@ -377,10 +589,14 @@ func newRmCmd() *cobra.Command {
 				}
 			}
 
-			// Stop the session first if it's running, then forget the project.
+			// Stop every task's session first, then forget the workspace.
 			t := tmux.New(cfg.TmuxBinary)
-			if t.Available() && t.HasSession(p.Session) {
-				_ = t.KillSession(p.Session)
+			if t.Available() {
+				for _, tk := range p.Tasks {
+					if t.HasSession(tk.Session) {
+						_ = t.KillSession(tk.Session)
+					}
+				}
 			}
 			if err := project.Remove(p.Name); err != nil {
 				return err
@@ -437,13 +653,13 @@ func lookClaude(cfg config.Config) (string, error) {
 	return path, nil
 }
 
-// resolveProject finds the project either from an explicit name argument or
-// from the current working directory.
-func resolveProject(args []string) (project.Project, error) {
-	if len(args) == 1 {
-		p, err := project.Find(args[0])
+// resolveProject finds a workspace either from an explicit name or from the
+// current working directory.
+func resolveProject(name string) (project.Project, error) {
+	if name != "" {
+		p, err := project.Find(name)
 		if err == project.ErrNotFound {
-			return project.Project{}, fmt.Errorf("project %q is not registered.\n\nRun `crabby init` inside it first.", args[0])
+			return project.Project{}, fmt.Errorf("workspace %q is not registered.\n\nRun `crabby init` inside it first.", name)
 		}
 		return p, err
 	}
@@ -454,7 +670,15 @@ func resolveProject(args []string) (project.Project, error) {
 	}
 	p, err := project.FindByPath(cwd)
 	if err == project.ErrNotFound {
-		return project.Project{}, fmt.Errorf("this directory is not an initialized project.\n\nRun:\n  crabby init")
+		return project.Project{}, fmt.Errorf("this directory is not an initialized workspace.\n\nRun:\n  crabby init")
 	}
 	return p, err
+}
+
+// arg returns the nth argument or "" when absent.
+func arg(args []string, n int) string {
+	if n < len(args) {
+		return args[n]
+	}
+	return ""
 }

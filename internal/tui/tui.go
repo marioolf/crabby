@@ -63,29 +63,53 @@ const (
 	ActionQuit Action = iota
 	ActionOpen
 	ActionNewProject
+	ActionNewTask
 )
 
-// Result is returned from Run.
+// Result is returned from Run. Project is the chosen workspace; Task is the
+// chosen task within it (for ActionOpen) or nil.
 type Result struct {
 	Action  Action
 	Project *project.Project
+	Task    *project.Task
 }
+
+// Styles specific to the dashboard footer, so informational data (the usage
+// summary) reads differently from the action keys.
+var (
+	keyStyle     = lipgloss.NewStyle().Foreground(accent).Bold(true)
+	summaryStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	headerStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Bold(true)
+)
 
 type confirmKind int
 
 const (
 	confirmNone confirmKind = iota
 	confirmStop
-	confirmRemove
+	confirmRemoveTask
+	confirmRemoveWorkspace
+)
+
+// rowKind distinguishes the three shapes a dashboard line can take.
+type rowKind int
+
+const (
+	rowSingle rowKind = iota // a single-task workspace, shown as one line
+	rowHeader                // a multi-task workspace's name (not selectable)
+	rowTask                  // one task beneath a header
 )
 
 type item struct {
-	project project.Project
-	state   session.State
-	branch  string
-	working bool // producing output right now
-	uptime  time.Duration
-	insight insights.Insight
+	workspace  project.Project
+	task       project.Task
+	kind       rowKind
+	state      session.State
+	branch     string
+	working    bool // producing output right now
+	uptime     time.Duration
+	insight    insights.Insight
+	groupStart bool // first line of a workspace group, for spacing
 }
 
 type tickMsg time.Time
@@ -132,9 +156,10 @@ func Run(t tmux.Client, detachKey string, coll *insights.Collector) (Result, err
 	return final.(model).result, nil
 }
 
-// refresh reloads projects and session state in a single tmux call, tracks
-// which sessions are actively producing output, and flags a bell on a rising
-// edge (a session that just started working while you're on the dashboard).
+// refresh reloads workspaces and session state in a single tmux call, groups
+// each workspace's tasks together, tracks which sessions are actively producing
+// output, and flags a bell on a rising edge (a task that just started working
+// while you're on the dashboard).
 func (m *model) refresh() {
 	projects, err := project.Load()
 	if err != nil {
@@ -142,50 +167,124 @@ func (m *model) refresh() {
 	}
 	sessions := m.tmux.ListSessions()
 
-	items := make([]item, 0, len(projects))
-	risingEdge := false
-	for _, p := range projects {
-		info, present := sessions[p.Session]
-		it := item{
-			project: p,
-			state:   session.Classify(present, info.Attached),
-			branch:  p.Branch(),
-			insight: m.insights.For(p.Path),
-		}
-		if present {
-			prev, seen := m.lastActivity[p.Session]
-			it.working = seen && info.Activity.After(prev)
-			if it.working && !m.working[p.Session] && !m.firstLoad {
-				risingEdge = true
-			}
-			if !info.Created.IsZero() {
-				it.uptime = time.Since(info.Created)
-			}
-			m.lastActivity[p.Session] = info.Activity
-			m.working[p.Session] = it.working
-		} else {
-			delete(m.lastActivity, p.Session)
-			delete(m.working, p.Session)
-		}
-		items = append(items, it)
+	type group struct {
+		p       project.Project
+		branch  string
+		insight insights.Insight
+		rows    []item
+		best    int // best (lowest) task rank, for ordering workspaces
 	}
 
-	sort.SliceStable(items, func(i, j int) bool {
-		ri, rj := session.Rank(items[i].state), session.Rank(items[j].state)
-		if ri != rj {
-			return ri < rj
+	risingEdge := false
+	groups := make([]group, 0, len(projects))
+	for _, p := range projects {
+		g := group{p: p, branch: p.Branch(), insight: m.insights.For(p.Path), best: 99}
+		for _, tk := range p.Tasks {
+			info, present := sessions[tk.Session]
+			it := item{
+				workspace: p,
+				task:      tk,
+				state:     session.Classify(present, info.Attached),
+				branch:    g.branch,
+				insight:   g.insight,
+			}
+			if present {
+				prev, seen := m.lastActivity[tk.Session]
+				it.working = seen && info.Activity.After(prev)
+				if it.working && !m.working[tk.Session] && !m.firstLoad {
+					risingEdge = true
+				}
+				if !info.Created.IsZero() {
+					it.uptime = time.Since(info.Created)
+				}
+				m.lastActivity[tk.Session] = info.Activity
+				m.working[tk.Session] = it.working
+			} else {
+				delete(m.lastActivity, tk.Session)
+				delete(m.working, tk.Session)
+			}
+			if r := session.Rank(it.state); r < g.best {
+				g.best = r
+			}
+			g.rows = append(g.rows, it)
 		}
-		return items[i].project.Name < items[j].project.Name
+		sort.SliceStable(g.rows, func(i, j int) bool {
+			ri, rj := session.Rank(g.rows[i].state), session.Rank(g.rows[j].state)
+			if ri != rj {
+				return ri < rj
+			}
+			return g.rows[i].task.Name < g.rows[j].task.Name
+		})
+		groups = append(groups, g)
+	}
+
+	sort.SliceStable(groups, func(i, j int) bool {
+		if groups[i].best != groups[j].best {
+			return groups[i].best < groups[j].best
+		}
+		return groups[i].p.Name < groups[j].p.Name
 	})
+
+	items := make([]item, 0, len(groups))
+	for _, g := range groups {
+		if len(g.rows) == 1 {
+			it := g.rows[0]
+			it.kind = rowSingle
+			it.groupStart = true
+			items = append(items, it)
+			continue
+		}
+		items = append(items, item{
+			workspace: g.p, kind: rowHeader, branch: g.branch,
+			insight: g.insight, groupStart: true,
+		})
+		for _, it := range g.rows {
+			it.kind = rowTask
+			items = append(items, it)
+		}
+	}
 
 	m.items = items
 	m.ringBell = risingEdge
 	m.firstLoad = false
+	m.clampCursor()
+}
+
+// selectable reports whether a row can hold the cursor (headers cannot).
+func (m model) selectable(i int) bool {
+	return i >= 0 && i < len(m.items) && m.items[i].kind != rowHeader
+}
+
+// nextSelectable returns the next selectable row from i in the given direction,
+// or -1 if there is none.
+func (m model) nextSelectable(i, dir int) int {
+	for j := i + dir; j >= 0 && j < len(m.items); j += dir {
+		if m.selectable(j) {
+			return j
+		}
+	}
+	return -1
+}
+
+// clampCursor keeps the cursor in range and never resting on a header.
+func (m *model) clampCursor() {
+	if len(m.items) == 0 {
+		m.cursor = 0
+		return
+	}
 	if m.cursor >= len(m.items) {
 		m.cursor = len(m.items) - 1
 	}
 	if m.cursor < 0 {
 		m.cursor = 0
+	}
+	if m.selectable(m.cursor) {
+		return
+	}
+	if n := m.nextSelectable(m.cursor, 1); n >= 0 {
+		m.cursor = n
+	} else if p := m.nextSelectable(m.cursor, -1); p >= 0 {
+		m.cursor = p
 	}
 }
 
@@ -221,13 +320,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.confirm != confirmNone {
 		if s := key.String(); s == "y" || s == "Y" {
-			p := m.items[m.cursor].project
+			it := m.items[m.cursor]
 			switch m.confirm {
 			case confirmStop:
-				_ = m.tmux.KillSession(p.Session)
-			case confirmRemove:
-				_ = m.tmux.KillSession(p.Session)
-				_ = project.Remove(p.Name)
+				_ = m.tmux.KillSession(it.task.Session)
+			case confirmRemoveTask:
+				_ = m.tmux.KillSession(it.task.Session)
+				_ = project.RemoveTask(it.workspace.Name, it.task.Name)
+			case confirmRemoveWorkspace:
+				for _, tk := range it.workspace.Tasks {
+					_ = m.tmux.KillSession(tk.Session)
+				}
+				_ = project.Remove(it.workspace.Name)
 			}
 			m.refresh()
 		}
@@ -240,95 +344,211 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.result = Result{Action: ActionQuit}
 		return m, tea.Quit
 	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
+		if n := m.nextSelectable(m.cursor, -1); n >= 0 {
+			m.cursor = n
 		}
 	case "down", "j":
-		if m.cursor < len(m.items)-1 {
-			m.cursor++
+		if n := m.nextSelectable(m.cursor, 1); n >= 0 {
+			m.cursor = n
 		}
 	case "r":
 		m.refresh()
 	case "n":
 		m.result = Result{Action: ActionNewProject}
 		return m, tea.Quit
+	case "t":
+		if m.selectable(m.cursor) {
+			ws := m.items[m.cursor].workspace
+			m.result = Result{Action: ActionNewTask, Project: &ws}
+			return m, tea.Quit
+		}
 	case "x":
-		if len(m.items) > 0 && m.items[m.cursor].state != session.Stopped {
+		if m.selectable(m.cursor) && m.items[m.cursor].state != session.Stopped {
 			m.confirm = confirmStop
 		}
 	case "d":
-		if len(m.items) > 0 {
-			m.confirm = confirmRemove
+		if m.selectable(m.cursor) {
+			// A single-task row stands for the whole workspace; a task row
+			// removes just that task.
+			if m.items[m.cursor].kind == rowTask {
+				m.confirm = confirmRemoveTask
+			} else {
+				m.confirm = confirmRemoveWorkspace
+			}
 		}
 	case "enter":
-		if len(m.items) > 0 {
-			p := m.items[m.cursor].project
-			m.result = Result{Action: ActionOpen, Project: &p}
+		if m.selectable(m.cursor) {
+			it := m.items[m.cursor]
+			ws, tk := it.workspace, it.task
+			m.result = Result{Action: ActionOpen, Project: &ws, Task: &tk}
 			return m, tea.Quit
 		}
 	}
 	return m, nil
 }
 
+// frame places the centred banner above left-aligned content, so the identity
+// stays centred while the working area reads like a normal CLI.
+func (m model) frame(content string) string {
+	banner := Banner()
+	if m.width > 0 {
+		banner = lipgloss.PlaceHorizontal(m.width, lipgloss.Center, banner)
+	}
+	return banner + "\n\n" + content
+}
+
 func (m model) View() string {
 	var b strings.Builder
-	b.WriteString(Banner())
-	b.WriteString("\n\n")
 	b.WriteString(divider())
 	b.WriteString("\n\n")
 
 	if len(m.items) == 0 {
-		b.WriteString("  No projects yet.\n\n")
-		b.WriteString(metaStyle.Render("  Run  crabby init  inside a project,\n"))
-		b.WriteString(metaStyle.Render("  or press  n  to add the current directory.\n\n"))
+		b.WriteString("No workspaces yet.\n\n")
+		b.WriteString(metaStyle.Render("Run  crabby init  inside a project,\n"))
+		b.WriteString(metaStyle.Render("or press  n  to add the current directory.\n\n"))
 		b.WriteString(divider())
 		b.WriteString("\n")
-		b.WriteString(helpStyle.Render("n new project    q quit"))
-		return center(m.width, b.String())
+		b.WriteString(actionKey("n", "new") + "   " + actionKey("q", "quit"))
+		return m.frame(b.String())
 	}
 
-	for i, it := range m.items {
-		selected := i == m.cursor
-		bar := "  "
-		name := nameStyle.Render(it.project.Name)
-		if selected {
-			bar = barStyle.Render("▌ ")
-			name = selNameStyle.Render(it.project.Name)
-		}
-		dot, dotStyle := glyph(it.state, it.working)
-		b.WriteString(fmt.Sprintf("%s%s %s\n", bar, dotStyle.Render(dot), name))
-
-		// What it's doing now, with how long ago Claude last wrote.
-		activity := m.activityLabel(it)
-		if ago := lastActivityAgo(it.insight); ago != "" {
-			activity += metaStyle.Render("  ·  " + ago)
-		}
-		b.WriteString("    " + activity + "\n")
-
-		// Factual metadata: only the parts we actually have.
-		if meta := metaLine(it); meta != "" {
-			b.WriteString("    " + metaStyle.Render(meta) + "\n")
-		}
-		b.WriteString("\n")
-	}
-
+	b.WriteString(m.renderRows())
+	b.WriteString("\n")
 	b.WriteString(divider())
 	b.WriteString("\n")
 	if summary := m.summaryLine(); summary != "" {
-		b.WriteString(summary + "\n")
+		b.WriteString(summary + "\n\n")
 	}
 	switch m.confirm {
 	case confirmStop:
-		b.WriteString(confirmStyle.Render(fmt.Sprintf("Stop \"%s\"? (y/n)", m.items[m.cursor].project.Name)))
-		return center(m.width, b.String())
-	case confirmRemove:
-		b.WriteString(confirmStyle.Render(fmt.Sprintf("Remove \"%s\" from Crabby? Files are kept. (y/n)", m.items[m.cursor].project.Name)))
-		return center(m.width, b.String())
+		b.WriteString(confirmStyle.Render(fmt.Sprintf("Stop \"%s\"? (y/n)", m.items[m.cursor].displayName())))
+		return m.frame(b.String())
+	case confirmRemoveTask:
+		it := m.items[m.cursor]
+		b.WriteString(confirmStyle.Render(fmt.Sprintf("Remove task \"%s\" from %q? (y/n)", it.task.Name, it.workspace.Name)))
+		return m.frame(b.String())
+	case confirmRemoveWorkspace:
+		b.WriteString(confirmStyle.Render(fmt.Sprintf("Remove workspace \"%s\" from Crabby? Files are kept. (y/n)", m.items[m.cursor].workspace.Name)))
+		return m.frame(b.String())
 	}
-	b.WriteString(helpStyle.Render("enter open   n new   x stop   d remove"))
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render(fmt.Sprintf("r refresh   q quit   ·   %s returns from a session", m.detachKey)))
-	return center(m.width, b.String())
+	b.WriteString(m.helpLines())
+	return m.frame(b.String())
+}
+
+// renderRows lays every workspace/task line out in two columns: the name on the
+// left, its live data aligned to the right.
+func (m model) renderRows() string {
+	plain := make([]string, len(m.items))
+	labelWidth := 0
+	for i, it := range m.items {
+		plain[i] = it.plainLabel()
+		if w := lipgloss.Width(plain[i]); w > labelWidth {
+			labelWidth = w
+		}
+	}
+
+	var b strings.Builder
+	for i, it := range m.items {
+		if it.groupStart && i > 0 {
+			b.WriteString("\n")
+		}
+		gutter := "  "
+		if m.selectable(i) && i == m.cursor {
+			gutter = barStyle.Render("▌ ")
+		}
+		pad := strings.Repeat(" ", labelWidth-lipgloss.Width(plain[i])+2)
+		b.WriteString(gutter + it.styledLabel(i == m.cursor) + pad + m.rowData(it) + "\n")
+		if meta := m.rowMeta(it); meta != "" {
+			b.WriteString("  " + strings.Repeat(" ", labelWidth+2) + meta + "\n")
+		}
+	}
+	return b.String()
+}
+
+// helpLines renders the footer with action keys highlighted so they read as
+// controls, distinct from the informational summary above them.
+func (m model) helpLines() string {
+	line1 := strings.Join([]string{
+		actionKey("enter", "open"), actionKey("n", "new workspace"),
+		actionKey("t", "new task"), actionKey("x", "stop"), actionKey("d", "remove"),
+	}, "   ")
+	line2 := actionKey("r", "refresh") + "   " + actionKey("q", "quit") +
+		"   " + helpStyle.Render("·  "+m.detachKey+" returns from a session")
+	return line1 + "\n" + line2
+}
+
+// actionKey styles a keybinding: the key in the accent colour, its description
+// faint.
+func actionKey(k, desc string) string {
+	return keyStyle.Render(k) + helpStyle.Render(" "+desc)
+}
+
+func (it item) plainLabel() string {
+	switch it.kind {
+	case rowHeader:
+		return it.workspace.Name
+	case rowTask:
+		return "  " + glyphRune(it.state) + " " + it.task.Name
+	default:
+		return glyphRune(it.state) + " " + it.workspace.Name
+	}
+}
+
+func (it item) styledLabel(selected bool) string {
+	if it.kind == rowHeader {
+		return headerStyle.Render(it.workspace.Name)
+	}
+	name := it.workspace.Name
+	indent := ""
+	if it.kind == rowTask {
+		name = it.task.Name
+		indent = "  "
+	}
+	dot, dotStyle := glyph(it.state, it.working)
+	rendered := nameStyle.Render(name)
+	if selected {
+		rendered = selNameStyle.Render(name)
+	}
+	return indent + dotStyle.Render(dot) + " " + rendered
+}
+
+func (it item) displayName() string {
+	if it.kind == rowTask {
+		return it.task.Name
+	}
+	return it.workspace.Name
+}
+
+// rowData is the primary line to the right of a row's name.
+func (m model) rowData(it item) string {
+	switch it.kind {
+	case rowHeader:
+		return metaStyle.Render(headerData(it))
+	case rowTask:
+		data := coarseActivity(it)
+		if it.uptime > 0 {
+			data += metaStyle.Render("  ·  up " + formatDuration(it.uptime))
+		}
+		return data
+	default:
+		data := m.activityLabel(it)
+		if ago := lastActivityAgo(it.insight); ago != "" {
+			data += metaStyle.Render("  ·  " + ago)
+		}
+		return data
+	}
+}
+
+// rowMeta is the optional faint second line, used only by single-task rows to
+// carry branch/uptime/model/tokens.
+func (m model) rowMeta(it item) string {
+	if it.kind != rowSingle {
+		return ""
+	}
+	if meta := metaLine(it); meta != "" {
+		return metaStyle.Render(meta)
+	}
+	return ""
 }
 
 // glyph picks the status symbol and colour. A working session pulses green.
@@ -342,9 +562,51 @@ func glyph(s session.State, working bool) (string, lipgloss.Style) {
 	return "●", stateStyles[s]
 }
 
-// activityLabel describes what a session is doing, combining tmux's live
-// "working" signal with the transcript's last recorded step. It never invents
-// state: with no transcript it falls back to the plain session state.
+// glyphRune is glyph's symbol only, for measuring label widths.
+func glyphRune(s session.State) string {
+	if s == session.Stopped {
+		return "○"
+	}
+	return "●"
+}
+
+// headerData is the dir-level summary shown on a multi-task workspace header:
+// its branch, model, and current-session tokens. These come from Claude's
+// transcript for the shared project directory, so they describe the workspace,
+// not any single task.
+func headerData(it item) string {
+	var parts []string
+	if it.branch != "" {
+		parts = append(parts, it.branch)
+	}
+	if it.insight.Model != "" {
+		parts = append(parts, it.insight.Model)
+	}
+	if it.insight.SessionTokens > 0 {
+		parts = append(parts, formatTokens(it.insight.SessionTokens)+" tok")
+	}
+	return strings.Join(parts, "  ·  ")
+}
+
+// coarseActivity is the state shown per task when several tasks share a
+// directory: transcript-derived detail cannot be attributed to one task, so
+// only the reliable tmux state is shown.
+func coarseActivity(it item) string {
+	switch {
+	case it.state == session.Stopped:
+		return stateStyles[session.Stopped].Render("Stopped")
+	case it.working:
+		return workingStyle.Render("Working")
+	case it.state == session.Running:
+		return stateStyles[session.Running].Render("Attached")
+	default:
+		return metaStyle.Render("Idle")
+	}
+}
+
+// activityLabel describes what a single-task workspace is doing, combining
+// tmux's live "working" signal with the transcript's last recorded step. It
+// never invents state: with no transcript it falls back to the plain state.
 func (m model) activityLabel(it item) string {
 	if it.state == session.Stopped {
 		return stateStyles[session.Stopped].Render("Stopped")
@@ -406,33 +668,36 @@ func lastActivityAgo(ins insights.Insight) string {
 	return formatAgo(time.Since(ins.LastActivity))
 }
 
-// summaryLine is the dashboard's global usage bar. Token totals appear only
-// when transcripts actually provided them, never as a placeholder.
+// summaryLine is the dashboard's global usage bar. Workspaces are counted once
+// each (the first line of each group); task states are counted per session.
+// Token totals appear only when transcripts provided them, never as a
+// placeholder, and are summed once per workspace to avoid double counting.
 func (m model) summaryLine() string {
 	if len(m.items) == 0 {
 		return ""
 	}
-	var running, waiting, stopped, working, tokens int
+	var workspaces, waiting, stopped, working, tokens int
 	for _, it := range m.items {
+		if it.groupStart {
+			workspaces++
+			tokens += it.insight.TodayTokens
+		}
+		if it.kind == rowHeader {
+			continue
+		}
 		switch it.state {
-		case session.Running:
-			running++
-		case session.Waiting:
-			waiting++
-		default:
+		case session.Stopped:
 			stopped++
+		default: // Running or Waiting are both "alive"
+			waiting++
 		}
 		if it.working {
 			working++
 		}
-		tokens += it.insight.TodayTokens
 	}
-	parts := []string{fmt.Sprintf("%d workspaces", len(m.items))}
-	if running > 0 {
-		parts = append(parts, fmt.Sprintf("%d running", running))
-	}
+	parts := []string{plural(workspaces, "workspace")}
 	if waiting > 0 {
-		parts = append(parts, fmt.Sprintf("%d waiting", waiting))
+		parts = append(parts, fmt.Sprintf("%d active", waiting))
 	}
 	if stopped > 0 {
 		parts = append(parts, fmt.Sprintf("%d stopped", stopped))
@@ -443,7 +708,7 @@ func (m model) summaryLine() string {
 	if tokens > 0 {
 		parts = append(parts, formatTokens(tokens)+" tokens today")
 	}
-	return metaStyle.Render(strings.Join(parts, "   ·   "))
+	return summaryStyle.Render(strings.Join(parts, "   ·   "))
 }
 
 // formatTokens renders a token count compactly: 950, 12k, 428k.
@@ -462,9 +727,15 @@ func formatDuration(d time.Duration) string {
 	case d < time.Hour:
 		return fmt.Sprintf("%dm", int(d.Minutes()))
 	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh%dm", int(d.Hours()), int(d.Minutes())%60)
+		if m := int(d.Minutes()) % 60; m > 0 {
+			return fmt.Sprintf("%dh%dm", int(d.Hours()), m)
+		}
+		return fmt.Sprintf("%dh", int(d.Hours()))
 	default:
-		return fmt.Sprintf("%dd%dh", int(d.Hours())/24, int(d.Hours())%24)
+		if h := int(d.Hours()) % 24; h > 0 {
+			return fmt.Sprintf("%dd%dh", int(d.Hours())/24, h)
+		}
+		return fmt.Sprintf("%dd", int(d.Hours())/24)
 	}
 }
 
@@ -482,6 +753,81 @@ func formatAgo(d time.Duration) string {
 	default:
 		return fmt.Sprintf("%dd ago", int(d.Hours())/24)
 	}
+}
+
+// --- Task selector ---------------------------------------------------------
+
+type taskModel struct {
+	workspace string
+	tasks     []project.Task
+	cursor    int
+	width     int
+	chosen    *project.Task
+}
+
+// SelectTask shows a workspace's tasks and returns the chosen one, or nil if the
+// user cancels. Used by `crabby attach` when a workspace holds several tasks.
+func SelectTask(workspace string, tasks []project.Task) (*project.Task, error) {
+	final, err := tea.NewProgram(
+		taskModel{workspace: workspace, tasks: tasks},
+		tea.WithAltScreen(),
+	).Run()
+	if err != nil {
+		return nil, err
+	}
+	return final.(taskModel).chosen, nil
+}
+
+func (m taskModel) Init() tea.Cmd { return nil }
+
+func (m taskModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if ws, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width = ws.Width
+		return m, nil
+	}
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil
+	}
+	switch key.String() {
+	case "q", "ctrl+c", "esc":
+		return m, tea.Quit
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "down", "j":
+		if m.cursor < len(m.tasks)-1 {
+			m.cursor++
+		}
+	case "enter":
+		t := m.tasks[m.cursor]
+		m.chosen = &t
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m taskModel) View() string {
+	var b strings.Builder
+	b.WriteString(Banner())
+	b.WriteString("\n\n")
+	b.WriteString(divider())
+	b.WriteString("\n\n")
+	b.WriteString(wordmarkStyle.Render(m.workspace) + metaStyle.Render("  ·  choose a task"))
+	b.WriteString("\n\n")
+	for i, t := range m.tasks {
+		bar := "  "
+		name := nameStyle.Render(t.Name)
+		if i == m.cursor {
+			bar = barStyle.Render("▌ ")
+			name = selNameStyle.Render(t.Name)
+		}
+		b.WriteString(bar + name + "\n")
+	}
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("↑/↓ move   enter attach   q cancel"))
+	return center(m.width, b.String())
 }
 
 // --- Pack selector ---------------------------------------------------------

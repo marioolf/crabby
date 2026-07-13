@@ -20,9 +20,16 @@ const (
 	Stopped State = "Stopped"
 )
 
-// Name returns the tmux session name for a project.
+// Name returns the tmux session name for a workspace's default task. Kept as
+// "crabby_<workspace>" so single-task workspaces match their pre-tasks name.
 func Name(projectName string) string {
 	return "crabby_" + projectName
+}
+
+// TaskSession builds the tmux session name for a named task, e.g.
+// "crabby_payments_tests". Users never type these — Crabby manages them.
+func TaskSession(workspace, task string) string {
+	return "crabby_" + workspace + "_" + task
 }
 
 // Classify maps a session's presence and attachment into a State. Used by the

@@ -23,8 +23,12 @@ func TestRegisterFindAndUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
-	if found != p {
-		t.Fatalf("Find returned %+v, want %+v", found, p)
+	if found.Name != p.Name || found.Path != p.Path {
+		t.Fatalf("Find returned %+v, want name/path of %+v", found, p)
+	}
+	// A legacy single-session entry migrates into a default "main" task.
+	if len(found.Tasks) != 1 || found.Tasks[0].Name != DefaultTask || found.Tasks[0].Session != "crabby_payments" {
+		t.Fatalf("expected migrated default task, got %+v", found.Tasks)
 	}
 
 	// Re-registering the same name updates in place, not appends.
@@ -50,6 +54,67 @@ func TestFindNotFound(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	if _, err := Find("nope"); err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestAddAndRemoveTask(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := Register(Project{Name: "payments", Path: "/p", Tasks: []Task{{Name: "main", Session: "crabby_payments"}}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := AddTask("payments", Task{Name: "tests", Session: "crabby_payments_tests"}); err != nil {
+		t.Fatalf("AddTask: %v", err)
+	}
+	// Duplicate names are rejected.
+	if err := AddTask("payments", Task{Name: "tests", Session: "x"}); err != ErrTaskExists {
+		t.Fatalf("AddTask duplicate = %v, want ErrTaskExists", err)
+	}
+
+	p, _ := Find("payments")
+	if len(p.Tasks) != 2 {
+		t.Fatalf("expected 2 tasks, got %+v", p.Tasks)
+	}
+
+	if err := RemoveTask("payments", "tests"); err != nil {
+		t.Fatalf("RemoveTask: %v", err)
+	}
+	p, _ = Find("payments")
+	if len(p.Tasks) != 1 || p.Tasks[0].Name != "main" {
+		t.Fatalf("after remove expected only main, got %+v", p.Tasks)
+	}
+}
+
+func TestRemoveLastTaskLeavesWorkspace(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := Register(Project{Name: "w", Path: "/w", Tasks: []Task{{Name: "only", Session: "crabby_w_only"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := RemoveTask("w", "only"); err != nil {
+		t.Fatalf("RemoveTask: %v", err)
+	}
+	// The workspace survives and load re-synthesizes a default task.
+	p, err := Find("w")
+	if err != nil {
+		t.Fatalf("workspace gone after removing last task: %v", err)
+	}
+	if len(p.Tasks) != 1 || p.Tasks[0].Name != DefaultTask {
+		t.Fatalf("expected re-synthesized default task, got %+v", p.Tasks)
+	}
+}
+
+func TestLegacyEntryMigratesToDefaultTask(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	// Simulate a pre-tasks registry entry (session, no tasks).
+	if err := Save([]Project{{Name: "old", Path: "/old", Session: "crabby_old"}}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Find("old")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Tasks) != 1 || p.Tasks[0].Session != "crabby_old" {
+		t.Fatalf("legacy entry did not migrate: %+v", p.Tasks)
 	}
 }
 

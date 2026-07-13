@@ -93,51 +93,84 @@ crabby
 ```
 
 ```
-                    (\/)    (\/)
-                      \(o..o)/
-                      /`----'\
+                       (\/)    (\/)
+                         \(o..o)/
+                         /`----'\
 
-                    C R A B B Y
-             Many Claudes. One shell.
-prepare projects · orchestrate claude · one terminal
-──────────────────────────────────────────────────
+                       C R A B B Y
+                Many Claudes. One shell.
+   prepare projects · orchestrate claude · one terminal
 
-▌ ● payments
-    Thinking…  ·  20s ago
-    feature/refunds  ·  up 2h14m  ·  Opus 4.8  ·  132k tok
+────────────────────────────────────────────────────
 
-  ● frontend
-    Waiting for input  ·  8m ago
-    main  ·  Sonnet 5  ·  48k tok
+  ● test         Waiting for input  ·  1m ago
+                 main  ·  up 8m  ·  Sonnet 5  ·  64k tok
 
-  ○ docs
-    Stopped
+  payments       feature/refunds  ·  Opus 4.8  ·  132k tok
+▌   ● refactor   Working  ·  up 2h
+    ● tests      Idle  ·  up 34m
+    ○ docs       Stopped
 
-──────────────────────────────────────────────────
-3 workspaces   ·   2 waiting   ·   1 stopped   ·   1 working   ·   180k tokens today
-enter open   n new   x stop   d remove
+  ○ SSH-AI       Stopped
+
+────────────────────────────────────────────────────
+3 workspaces   ·   3 active   ·   2 stopped   ·   1 working   ·   196k tokens today
+
+enter open   n new workspace   t new task   x stop   d remove
 r refresh   q quit   ·   F12 returns from a session
 ```
 
-The dashboard **refreshes automatically** (about once a second), sorts projects
-by importance (**Running → Waiting → Stopped**, then alphabetically), and shows
-what each workspace is doing right now. State is colour-coded: green (running),
-yellow (waiting), grey (stopped). See [Workspace insights](#workspace-insights)
-for what each line means and where the data comes from.
+The banner stays centred; the list and footer are left-aligned like a normal
+CLI, with each row's live data in a column to the right of its name. A workspace
+with one task shows as a single line; a workspace with several (like `payments`
+above) becomes a header with its tasks beneath it. The dashboard **refreshes
+automatically** (about once a second) and sorts by importance (**Running →
+Waiting → Stopped**, then alphabetically). See
+[Workspaces and tasks](#workspaces-and-tasks) for the model and
+[Workspace insights](#workspace-insights) for where the data comes from.
 
-- **Enter** opens the selected project in Claude. If it wasn't running, Crabby
+- **Enter** opens the selected task in Claude. If it wasn't running, Crabby
   starts it for you.
 - **F12** (inside a session) brings you straight back to this list — no tmux
   shortcuts to learn. The session keeps running in the background.
-- Pick another project and you're in a different Claude in one keypress.
-- **n** adds the current directory as a project (see [Packs](#packs)).
-- **x** stops the highlighted session (asks first) — no need to exit Claude.
-- **d** removes the highlighted project from Crabby (asks first). Your files are
-  kept; only Crabby forgets it. Also available as `crabby rm [project]`.
+- **n** adds the current directory as a new workspace (see [Packs](#packs)).
+- **t** starts a new task in the selected workspace.
+- **x** stops the highlighted task (asks first) — no need to exit Claude.
+- **d** removes the highlighted task, or the whole workspace for a single-task
+  row (asks first). Your files are kept; only Crabby forgets it.
 - **q** quits.
 
 The return key is shown on a small Crabby status bar while you work, so you
 never have to remember it.
+
+## Workspaces and tasks
+
+Crabby has three simple concepts:
+
+- **Workspace** — a project directory with a `CLAUDE.md`. This is the source of
+  truth; it's what `crabby init` and `crabby import` register.
+- **Task** — one Claude Code session working inside a workspace. A workspace can
+  have several, each an independent session **sharing the same directory**.
+- **Claude session** — the actual running Claude, one per task, kept alive in
+  its own tmux session (named automatically, e.g. `crabby_payments_tests`).
+
+One workspace, multiple tasks. This lets you run parallel efforts in the same
+repository without cloning it:
+
+```bash
+cd ~/repos/payments
+crabby task create refactor     # start a "refactor" task and jump in
+crabby task create tests        # a second, independent Claude in the same repo
+crabby task list                # see them both
+crabby attach payments          # asks which task to open
+crabby attach payments tests    # or open one directly
+crabby task delete refactor     # done with it — the workspace stays
+```
+
+Every workspace starts with one default task (`main`), so if you never touch
+`crabby task`, nothing changes: a workspace behaves exactly like a single
+session did before. Tasks are independent — Crabby does not coordinate them,
+share memory between them, or manage git branches; each is just its own Claude.
 
 ## Workspace insights
 
@@ -242,12 +275,16 @@ branch is shown for context; when it isn't, it's still importable.
 | Command | What it does |
 | --- | --- |
 | `crabby` | Open the home screen (this is all you normally need). |
-| `crabby init [path]` | Register a project (the current directory, or `path`). Creates `.claude/crabby.yaml`, and a starter `CLAUDE.md` if none exists. |
+| `crabby init [path]` | Register a workspace (the current directory, or `path`). Creates `.claude/crabby.yaml`, and a starter `CLAUDE.md` if none exists. |
 | `crabby import [path]` | Discover folders that already have a `CLAUDE.md` and import the ones you pick (the current directory, or `path`). |
+| `crabby task create <name>` | Create a task (a parallel Claude session) in the current workspace and open it. |
+| `crabby task list [workspace]` | List a workspace's tasks and their state. |
+| `crabby task delete <name> [workspace]` | Delete a task (the workspace stays). |
+| `crabby task restart <name> [workspace]` | Stop a task's session and start it fresh. |
 | `crabby ps` | Alias for `crabby`. |
-| `crabby attach [project]` | Open a specific project's session directly. |
-| `crabby start [project]` | Same as attach — launches the session if needed. |
-| `crabby rm [project]` | Remove a project from Crabby (files are kept). |
+| `crabby attach [workspace] [task]` | Open a workspace's session; asks which task when several exist, or pass the task name. |
+| `crabby start [workspace] [task]` | Same as attach — launches the session if needed. |
+| `crabby rm [workspace]` | Remove a workspace from Crabby, stopping its tasks (files are kept). |
 | `crabby doctor` | Check that WSL, Ubuntu, tmux, Claude, and crabby are present. |
 | `crabby version` | Print the installed version. |
 
@@ -327,8 +364,9 @@ and shows it in the selector, so you always know where they go.
 | 🟡 `Waiting` | Claude is alive in the background; press Enter to jump back in. |
 | ⚪ `Stopped` | Nothing running; press Enter to start fresh. |
 
-A `Waiting` session that is actively producing output is tagged `· working`, so
-you can see at a glance which of your Claude workers are busy.
+A live session that is actively producing output shows what it's doing (e.g.
+`Working`, `Thinking…`, `Editing files`), so you can see at a glance which of
+your Claude workers are busy. See [Workspace insights](#workspace-insights).
 
 ## Notifications
 
@@ -397,7 +435,7 @@ publishes the release automatically.
 
 ## Out of scope (for now)
 
-Git integration, worktrees, GitHub/PRs, VSCode, multiple Claude sessions per
-project, plugins, hooks, templates, profiles, snapshots, memory, AI workflows,
-context generation, skills, MCP management. See the technical document for the
-roadmap.
+Git integration, worktrees, GitHub/PRs, VSCode, coordination or shared memory
+between tasks, plugins, hooks, templates, profiles, snapshots, memory, AI
+workflows, context generation, skills, MCP management. See the technical
+document for the roadmap.
