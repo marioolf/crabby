@@ -14,6 +14,7 @@ import (
 	"github.com/marioolf/crabby/internal/doctor"
 	"github.com/marioolf/crabby/internal/importcmd"
 	"github.com/marioolf/crabby/internal/initcmd"
+	"github.com/marioolf/crabby/internal/insights"
 	"github.com/marioolf/crabby/internal/pack"
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/tmux"
@@ -77,8 +78,11 @@ func home() error {
 		return errTmuxMissing(cfg.TmuxBinary)
 	}
 
+	// One collector for the whole home-screen loop, so its incremental
+	// transcript cache survives returning from a session.
+	coll := insights.New()
 	for {
-		res, err := tui.Run(t, cfg.DetachKey)
+		res, err := tui.Run(t, cfg.DetachKey, coll)
 		if err != nil {
 			return err
 		}
@@ -253,7 +257,7 @@ func newImportCmd() *cobra.Command {
 			}
 			if len(found) == 0 {
 				fmt.Printf("No Claude workspaces found under %s.\n", root)
-				fmt.Println("A workspace is a git repository containing a CLAUDE.md.")
+				fmt.Println("A workspace is any folder containing a CLAUDE.md.")
 				return nil
 			}
 

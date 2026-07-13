@@ -1,10 +1,11 @@
-// Package importcmd discovers existing Claude Code repositories so they can be
+// Package importcmd discovers existing Claude Code projects so they can be
 // adopted into Crabby without re-initializing them.
 //
-// A repository qualifies when it is a git repository (has a .git) and already
-// contains a CLAUDE.md. Discovery walks a directory tree once, pruning
-// dependency folders and stopping at each git repository so nested repositories
-// inside an imported one are never double-counted.
+// A folder qualifies simply by containing a CLAUDE.md — a git repository is not
+// required (git only ever supplied the branch shown for context). Discovery
+// walks a directory tree once, pruning dependency folders and stopping at the
+// first CLAUDE.md on any branch, so a project's own subdirectory context files
+// are never imported as separate workspaces.
 package importcmd
 
 import (
@@ -16,11 +17,11 @@ import (
 	"github.com/marioolf/crabby/internal/project"
 )
 
-// Workspace is a discovered Claude Code repository, ready to be imported.
+// Workspace is a discovered Claude Code project, ready to be imported.
 type Workspace struct {
 	Name     string // directory base name
 	Path     string // absolute path
-	Branch   string // current git branch, or "" if it cannot be read
+	Branch   string // current git branch, or "" when the folder is not a git repo
 	Imported bool   // already registered in Crabby
 }
 
@@ -39,10 +40,10 @@ var ignoredDirs = map[string]bool{
 	".mypy_cache":  true,
 }
 
-// Discover walks root and returns every Claude workspace found beneath it,
-// sorted by name. Already-registered projects are flagged rather than omitted,
-// so the selector can show them as imported. Unreadable directories are skipped
-// silently rather than aborting the scan.
+// Discover walks root and returns every folder containing a CLAUDE.md found
+// beneath it, sorted by name. Already-registered projects are flagged rather
+// than omitted, so the selector can show them as imported. Unreadable
+// directories are skipped silently rather than aborting the scan.
 func Discover(root string) ([]Workspace, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -69,19 +70,18 @@ func Discover(root string) ([]Workspace, error) {
 		if path != abs && ignoredDirs[d.Name()] {
 			return fs.SkipDir
 		}
-		if !isGitRepo(path) {
+		if !fileExists(filepath.Join(path, "CLAUDE.md")) {
 			return nil
 		}
-		// A git repository is one unit: record it if it has a CLAUDE.md, then
-		// stop descending so nested repositories inside it are ignored.
-		if fileExists(filepath.Join(path, "CLAUDE.md")) {
-			found = append(found, Workspace{
-				Name:     filepath.Base(path),
-				Path:     path,
-				Branch:   project.Project{Path: path}.Branch(),
-				Imported: registered[path],
-			})
-		}
+		// A CLAUDE.md marks a project. Record it (with its git branch if it
+		// happens to be a repo) and stop descending, so nested context files
+		// deeper in the project aren't imported as separate workspaces.
+		found = append(found, Workspace{
+			Name:     filepath.Base(path),
+			Path:     path,
+			Branch:   project.Project{Path: path}.Branch(),
+			Imported: registered[path],
+		})
 		return fs.SkipDir
 	})
 	if walkErr != nil {
@@ -90,13 +90,6 @@ func Discover(root string) ([]Workspace, error) {
 
 	sort.Slice(found, func(i, j int) bool { return found[i].Name < found[j].Name })
 	return found, nil
-}
-
-// isGitRepo reports whether dir contains a .git entry (a directory for a normal
-// clone, or a file for worktrees and submodules).
-func isGitRepo(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, ".git"))
-	return err == nil
 }
 
 func fileExists(path string) bool {
