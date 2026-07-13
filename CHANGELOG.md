@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-07-13
+
+### Fixed
+
+- **Opening a task could land on the wrong session.** tmux matches session
+  targets by prefix, so a default task's session (`crabby_<ws>`) matched a named
+  task's (`crabby_<ws>_<task>`) — opening `main` attached to another task
+  instead. Crabby now targets sessions by exact match. This also fixes the same
+  collision between workspaces whose names share a prefix (e.g. `test` and
+  `test2`).
+
 ## [0.7.1] - 2026-07-13
 
 ### Changed

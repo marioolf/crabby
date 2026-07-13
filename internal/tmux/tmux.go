@@ -35,6 +35,12 @@ func (c Client) args(extra ...string) []string {
 	return append([]string{"-L", socket}, extra...)
 }
 
+// exact turns a session name into an exact-match target. Without the leading
+// "=", tmux matches targets by prefix, so "crabby_test" would resolve to
+// "crabby_test_docs" — opening the wrong task, or the wrong workspace when one
+// name is a prefix of another.
+func exact(session string) string { return "=" + session }
+
 func (c Client) run(extra ...string) error {
 	cmd := exec.Command(c.Binary, c.args(extra...)...)
 	cmd.Stderr = os.Stderr
@@ -54,10 +60,14 @@ func (c Client) Available() bool {
 
 // HasSession reports whether a session with the given name exists.
 func (c Client) HasSession(name string) bool {
-	return exec.Command(c.Binary, c.args("has-session", "-t", name)...).Run() == nil
+	return exec.Command(c.Binary, c.args("has-session", "-t", exact(name))...).Run() == nil
 }
 
 // Attached reports whether a client is currently attached to the session.
+//
+// This uses display-message, whose -t is a target-pane and does not accept the
+// "=" exact-match form, so callers must pass a full session name. The dashboard
+// reads attachment from ListSessions instead, which keys on exact names.
 func (c Client) Attached(name string) bool {
 	out, err := c.output("display-message", "-p", "-t", name, "#{session_attached}")
 	if err != nil {
@@ -129,20 +139,20 @@ func (c Client) NewSession(name, dir, command string) error {
 // KillSession ends a session (and the program running in it). Used by the home
 // screen's stop key so the user never has to touch tmux directly.
 func (c Client) KillSession(name string) error {
-	return c.run("kill-session", "-t", name)
+	return c.run("kill-session", "-t", exact(name))
 }
 
 // RenameWindow sets the session's window name, which Crabby uses to show the
 // project name in the status bar instead of the running command.
 func (c Client) RenameWindow(session, name string) error {
-	return c.run("rename-window", "-t", session, name)
+	return c.run("rename-window", "-t", exact(session), name)
 }
 
 // AttachChild attaches to the session as a child process, inheriting the
 // terminal. It blocks until the user leaves the session (detaches or Claude
 // exits) and then returns — which is what lets Crabby take back control.
 func (c Client) AttachChild(name string) error {
-	cmd := exec.Command(c.Binary, c.args("attach-session", "-t", name)...)
+	cmd := exec.Command(c.Binary, c.args("attach-session", "-t", exact(name))...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
