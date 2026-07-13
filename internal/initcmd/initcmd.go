@@ -47,6 +47,14 @@ func Init(dir string, p *pack.Pack) (Result, error) {
 		return Result{}, err
 	}
 
+	// Only initialize a directory that already exists — never conjure one from a
+	// mistyped path.
+	if info, err := os.Stat(abs); err != nil {
+		return Result{}, fmt.Errorf("cannot initialize %q: %w", dir, err)
+	} else if !info.IsDir() {
+		return Result{}, fmt.Errorf("%q is not a directory", dir)
+	}
+
 	name := filepath.Base(abs)
 	proj := project.Project{
 		Name:    name,

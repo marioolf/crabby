@@ -12,6 +12,7 @@ import (
 
 	"github.com/marioolf/crabby/internal/config"
 	"github.com/marioolf/crabby/internal/doctor"
+	"github.com/marioolf/crabby/internal/importcmd"
 	"github.com/marioolf/crabby/internal/initcmd"
 	"github.com/marioolf/crabby/internal/pack"
 	"github.com/marioolf/crabby/internal/project"
@@ -52,6 +53,7 @@ func newRootCmd() *cobra.Command {
 
 	root.AddCommand(
 		newInitCmd(),
+		newImportCmd(),
 		newPsCmd(),
 		newAttachCmd(),
 		newStartCmd(),
@@ -202,13 +204,16 @@ func newVersionCmd() *cobra.Command {
 
 func newInitCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "init",
-		Short: "Initialize the current project for Claude Code",
-		Args:  cobra.NoArgs,
+		Use:   "init [path]",
+		Short: "Initialize a project for Claude Code (current directory by default)",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cwd, err := os.Getwd()
+			dir, err := os.Getwd()
 			if err != nil {
 				return err
+			}
+			if len(args) == 1 {
+				dir = args[0]
 			}
 			p, cancelled, err := choosePack()
 			if err != nil {
@@ -217,7 +222,7 @@ func newInitCmd() *cobra.Command {
 			if cancelled {
 				return nil
 			}
-			res, err := initcmd.Init(cwd, p)
+			res, err := initcmd.Init(dir, p)
 			if err != nil {
 				return err
 			}
@@ -226,6 +231,63 @@ func newInitCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// newImportCmd adopts existing Claude Code repositories in bulk: it scans a
+// directory tree for git repos that already have a CLAUDE.md and registers the
+// ones the user picks. No files are changed beyond Crabby's own metadata.
+func newImportCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "import [path]",
+		Short: "Import existing Claude Code repositories into Crabby",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root := "."
+			if len(args) == 1 {
+				root = args[0]
+			}
+			fmt.Printf("Scanning %s ...\n", root)
+			found, err := importcmd.Discover(root)
+			if err != nil {
+				return err
+			}
+			if len(found) == 0 {
+				fmt.Printf("No Claude workspaces found under %s.\n", root)
+				fmt.Println("A workspace is a git repository containing a CLAUDE.md.")
+				return nil
+			}
+
+			chosen, cancelled, err := tui.SelectImports(found)
+			if err != nil {
+				return err
+			}
+			if cancelled || len(chosen) == 0 {
+				fmt.Println("Nothing imported.")
+				return nil
+			}
+
+			for _, w := range chosen {
+				// Init with no pack registers the project and writes Crabby's
+				// metadata without touching the repo's existing CLAUDE.md.
+				res, err := initcmd.Init(w.Path, nil)
+				if err != nil {
+					fmt.Printf("  ✗ %s (%v)\n", w.Name, err)
+					continue
+				}
+				fmt.Printf("  + %s\n", res.Project.Name)
+			}
+			fmt.Printf("\nImported %s. Run `crabby` to see them.\n", pluralWord(len(chosen), "project"))
+			return nil
+		},
+	}
+}
+
+// pluralWord formats a count with its noun for import summaries.
+func pluralWord(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("1 %s", noun)
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }
 
 // newPsCmd keeps `crabby ps` working as an alias for the home screen.
