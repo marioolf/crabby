@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-07-13
+
+### Changed
+
+- Dashboard layout: everything is centred again, but the workspace list is
+  centred as a single block so its name and data columns stay left-aligned
+  (instead of each line drifting to its own centre). The banner, dividers, usage
+  summary, and footer keys remain centred line by line.
+
 ## [0.7.0] - 2026-07-13
 
 ### Added
