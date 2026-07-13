@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`crabby import` no longer requires a git repository.** Any folder containing
+  a `CLAUDE.md` is now importable; git is only used to show a branch for context
+  when the folder happens to be a repository. Scanning stops at the first
+  `CLAUDE.md` on each branch of the tree, so a project's own subdirectory context
+  files aren't imported as separate workspaces.
+
 ### Fixed
 
 - **Windows installer now upgrades an existing install.** `install.ps1` used to

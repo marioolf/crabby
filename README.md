@@ -156,8 +156,8 @@ crabby init ~/repos/payments
 crabby import ~/repos
 ```
 
-`import` scans the tree for git repositories that contain a `CLAUDE.md` and
-shows what it found. Pick the ones you want and press Enter:
+`import` scans the tree for folders that contain a `CLAUDE.md` and shows what it
+found — a git repository isn't required. Pick the ones you want and press Enter:
 
 ```
        (\/)    (\/)
@@ -189,8 +189,10 @@ Import never edits your repositories — it registers them and writes Crabby's o
 Imported projects behave exactly like ones created with `crabby init`.
 
 `import` skips the obvious noise while scanning — `.git`, `node_modules`,
-`.venv`, `vendor`, and similar — and treats each git repository as a single
-unit, so nested repositories inside one aren't imported separately.
+`.venv`, `vendor`, and similar — and stops at the first `CLAUDE.md` on each
+branch of the tree, so a project's own subdirectory context files aren't
+imported as separate workspaces. When a folder is a git repository its current
+branch is shown for context; when it isn't, it's still importable.
 
 ## Commands
 
@@ -198,7 +200,7 @@ unit, so nested repositories inside one aren't imported separately.
 | --- | --- |
 | `crabby` | Open the home screen (this is all you normally need). |
 | `crabby init [path]` | Register a project (the current directory, or `path`). Creates `.claude/crabby.yaml`, and a starter `CLAUDE.md` if none exists. |
-| `crabby import [path]` | Discover git repositories that already have a `CLAUDE.md` and import the ones you pick (the current directory, or `path`). |
+| `crabby import [path]` | Discover folders that already have a `CLAUDE.md` and import the ones you pick (the current directory, or `path`). |
 | `crabby ps` | Alias for `crabby`. |
 | `crabby attach [project]` | Open a specific project's session directly. |
 | `crabby start [project]` | Same as attach — launches the session if needed. |

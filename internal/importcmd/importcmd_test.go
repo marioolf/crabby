@@ -35,38 +35,39 @@ func names(ws []Workspace) map[string]bool {
 	return out
 }
 
-func TestDiscoverFindsGitReposWithClaudeMD(t *testing.T) {
+func TestDiscoverFindsFoldersWithClaudeMD(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 
-	repo(t, filepath.Join(root, "payments"), true, true)   // qualifies
-	repo(t, filepath.Join(root, "frontend"), true, true)   // qualifies
-	repo(t, filepath.Join(root, "no-git"), false, true)    // no .git
-	repo(t, filepath.Join(root, "no-claude"), true, false) // no CLAUDE.md
+	repo(t, filepath.Join(root, "payments"), true, true)   // git + CLAUDE.md
+	repo(t, filepath.Join(root, "frontend"), true, true)   // git + CLAUDE.md
+	repo(t, filepath.Join(root, "no-git"), false, true)    // CLAUDE.md, no git — still qualifies
+	repo(t, filepath.Join(root, "no-claude"), true, false) // git only — does not qualify
 
 	found, err := Discover(root)
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
 	got := names(found)
-	if len(got) != 2 || !got["frontend"] || !got["payments"] {
-		t.Fatalf("got %v, want frontend+payments only", got)
+	if len(got) != 3 || !got["frontend"] || !got["payments"] || !got["no-git"] {
+		t.Fatalf("got %v, want frontend+payments+no-git", got)
 	}
 	// Results are sorted by name.
-	if found[0].Name != "frontend" || found[1].Name != "payments" {
+	if found[0].Name != "frontend" || found[1].Name != "no-git" || found[2].Name != "payments" {
 		t.Fatalf("not sorted: %v", found)
 	}
 }
 
-func TestDiscoverPrunesDependencyAndNestedRepos(t *testing.T) {
+func TestDiscoverPrunesDepsAndNestedWorkspaces(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 
-	// A qualifying repo that itself contains a dependency folder holding another
-	// repo, plus a nested repo — neither should surface.
+	// A qualifying project that itself contains a dependency folder with a
+	// CLAUDE.md and a nested project — neither should surface, because scanning
+	// stops at the outer CLAUDE.md.
 	outer := filepath.Join(root, "outer")
 	repo(t, outer, true, true)
-	repo(t, filepath.Join(outer, "node_modules", "dep"), true, true)
+	repo(t, filepath.Join(outer, "node_modules", "dep"), false, true)
 	repo(t, filepath.Join(outer, "packages", "inner"), true, true)
 
 	found, err := Discover(root)
@@ -74,7 +75,21 @@ func TestDiscoverPrunesDependencyAndNestedRepos(t *testing.T) {
 		t.Fatalf("Discover: %v", err)
 	}
 	if len(found) != 1 || found[0].Name != "outer" {
-		t.Fatalf("got %v, want outer only (nested repos ignored)", names(found))
+		t.Fatalf("got %v, want outer only (nested workspaces ignored)", names(found))
+	}
+}
+
+func TestDiscoverBranchEmptyForNonGitFolder(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	root := t.TempDir()
+	repo(t, filepath.Join(root, "notes"), false, true) // CLAUDE.md, no git
+
+	found, err := Discover(root)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(found) != 1 || found[0].Branch != "" {
+		t.Fatalf("got %v, want one workspace with empty branch", found)
 	}
 }
 
@@ -102,17 +117,17 @@ func TestDiscoverFlagsAlreadyImported(t *testing.T) {
 	}
 }
 
-func TestDiscoverOnASingleRepo(t *testing.T) {
+func TestDiscoverOnASingleFolder(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
-	repo(t, root, true, true)
+	repo(t, root, false, true) // the root itself, no git
 
 	found, err := Discover(root)
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
 	if len(found) != 1 || found[0].Path != mustAbs(t, root) {
-		t.Fatalf("got %v, want the root repo itself", found)
+		t.Fatalf("got %v, want the root folder itself", found)
 	}
 }
 

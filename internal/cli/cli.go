@@ -253,7 +253,7 @@ func newImportCmd() *cobra.Command {
 			}
 			if len(found) == 0 {
 				fmt.Printf("No Claude workspaces found under %s.\n", root)
-				fmt.Println("A workspace is a git repository containing a CLAUDE.md.")
+				fmt.Println("A workspace is any folder containing a CLAUDE.md.")
 				return nil
 			}
 
