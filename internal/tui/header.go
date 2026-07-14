@@ -33,27 +33,27 @@ const crabArt = " (\\/)    (\\/)\n" +
 	"   /`----'\\\n" +
 	"  //      \\\\"
 
-// crabWave flips the claws and kicks the legs the other way; crabBlink closes
-// the eyes and tucks the legs. Cycled with the resting pose, the claws, legs and
-// eyes all move, so the crab reads as alive rather than just sliding about.
+// crabWave flips the claws; crabBlink closes the eyes. The legs stay put in
+// every pose — only the claws and eyes move, so the crab reads as alive without
+// the busier leg motion.
 const (
 	crabWave = " (/\\)    (/\\)\n" +
 		"   \\(o..o)/\n" +
 		"   /`----'\\\n" +
-		"  \\\\      //"
+		"  //      \\\\"
 	crabBlink = " (\\/)    (\\/)\n" +
 		"   \\(-..-)/\n" +
 		"   /`----'\\\n" +
-		"  /|      |\\"
+		"  //      \\\\"
 )
 
 var crabFrames = []string{crabArt, crabWave, crabBlink}
 
 // crabCycle is one loop of the animation: for each step, which pose to show and
-// how far to sway it. The sway is symmetric around zero so the crab's resting
-// position is centred over the wordmark, not off to one side.
+// how far to sway it. It starts centred (sway 0) and swings symmetrically either
+// side, so the crab both begins and rests centred over the wordmark.
 var crabCycle = []struct{ frame, sway int }{
-	{0, -2}, {0, -1}, {1, 0}, {0, 1}, {0, 2}, {2, 1}, {1, 0}, {0, -1},
+	{0, 0}, {0, 1}, {1, 2}, {0, 1}, {0, 0}, {2, -1}, {1, -2}, {0, -1},
 }
 
 // bannerWidth is the width of the widest line (the support line); every line is
