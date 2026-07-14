@@ -71,32 +71,42 @@ func blockWidth(s string) int {
 	return w
 }
 
-// centerIn left-pads a (possibly styled) line so it sits centred in width.
-func centerIn(width int, s string) string {
-	if pad := (width - lipgloss.Width(s)) / 2; pad > 0 {
-		return strings.Repeat(" ", pad) + s
+// placeIn positions a (possibly styled) line at the given left offset within a
+// line that is exactly width wide, right-padding to fill it. Every banner line
+// is made the same width this way: lipgloss.PlaceHorizontal centres each line by
+// its own width, so lines of differing widths would be re-centred independently
+// and drift apart — a uniform width keeps them aligned as one block.
+func placeIn(width, left int, s string) string {
+	right := width - left - lipgloss.Width(s)
+	if right < 0 {
+		right = 0
 	}
-	return s
+	if left < 0 {
+		left = 0
+	}
+	return strings.Repeat(" ", left) + s + strings.Repeat(" ", right)
+}
+
+// centerIn places a line centred within width (both sides padded).
+func centerIn(width int, s string) string {
+	return placeIn(width, (width-lipgloss.Width(s))/2, s)
 }
 
 // renderBanner assembles the identity block with the crab at a given pose and
-// horizontal sway. The crab is centred over the wordmark at sway 0 and shifts by
-// sway columns either side; the wordmark, tagline and support line never move.
+// horizontal sway. Every line is exactly bannerWidth wide, so the block stays
+// coherent when centred; the crab is centred over the wordmark at sway 0 and
+// shifts by sway columns either side while the text lines never move.
 func renderBanner(frame, sway int) string {
 	bw := bannerWidth()
 	crab := crabFrames[frame]
-	pad := (bw-blockWidth(crab))/2 + sway
-	if pad < 0 {
-		pad = 0
-	}
-	lead := strings.Repeat(" ", pad)
+	left := (bw-blockWidth(crab))/2 + sway
 
 	var lines []string
 	for _, l := range strings.Split(crab, "\n") {
-		lines = append(lines, lead+crabStyle.Render(l))
+		lines = append(lines, placeIn(bw, left, crabStyle.Render(l)))
 	}
 	lines = append(lines,
-		"",
+		strings.Repeat(" ", bw),
 		centerIn(bw, wordmarkStyle.Render(Wordmark)),
 		centerIn(bw, taglineStyle.Render(Tagline)),
 		centerIn(bw, subStyle.Render(Subtitle)),
