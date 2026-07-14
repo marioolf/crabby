@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-14
+
+### Changed
+
+- **Crabby is now a TUI-first terminal application.** Running `crabby` opens a
+  persistent, multi-panel home screen and every day-to-day action happens inside
+  it — the shell is no longer part of the workflow. The dashboard is three
+  columns (**Workspaces | Tasks | Details**) with keyboard focus moving between
+  panes (Tab / arrows); Enter opens the selected task in Claude.
+- Attaching to a Claude session now runs through the app (via `tea.ExecProcess`),
+  so the screen is released for Claude and the dashboard restored on return —
+  without ever leaving Crabby. The prefix-free return key (F12) is shown on
+  screen and in Help.
+
+### Added
+
+- In-app **workspace creation** (n): pick a directory and a pack, no shell.
+- In-app **import** (i): scan a folder for workspaces with a `CLAUDE.md` and pick
+  which to adopt; the scan runs off the UI thread so a large tree never freezes.
+- In-app **task management**: create (t), stop (x), remove (d), and open (Enter).
+- In-app **pack management** (p): create, duplicate, edit (via `$EDITOR`), and
+  delete packs — no manual filesystem editing required.
+- A **Settings** section (Packs, Diagnostics, About) and a **Help** screen (?)
+  listing every navigation key, shortcut, and action.
+
+### Removed
+
+- The `init`, `import`, `task`, `attach`, `start`, `ps`, and `rm` CLI
+  subcommands. Everything they did now lives in the interface. The command line
+  keeps only `crabby`, `crabby version`, and `crabby doctor`.
+
+Existing workspaces, tasks, and packs keep working — the data model, session
+storage, and pack format are unchanged.
+
+## [0.7.3] - 2026-07-14
+
+### Fixed
+
+- **Mouse wheel scrolled Claude's prompt history instead of the pane.** With
+  tmux's mouse mode off (the default), the wheel was forwarded to Claude Code as
+  arrow keys, cycling through old prompts rather than scrolling up through the
+  response. Crabby now enables mouse mode on its tmux socket so the wheel scrolls
+  the pane's scrollback. (Hold Shift while dragging for the terminal's native
+  selection.)
+
 ## [0.7.2] - 2026-07-13
 
 ### Fixed

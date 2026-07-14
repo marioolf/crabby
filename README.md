@@ -76,101 +76,89 @@ crabby doctor
 
 ## Everyday use
 
-Add a project once:
-
-```bash
-cd my-project
-crabby init
-```
-
-Already have repositories with a `CLAUDE.md`? Adopt them without changing
-anything about how they work — see [Adopting existing projects](#adopting-existing-projects).
-
-Then just run Crabby:
+Crabby is a terminal application. Open it once and stay inside it — creating
+workspaces and tasks, jumping into Claude, and managing packs all happen in the
+interface. There are no commands to remember.
 
 ```bash
 crabby
 ```
 
 ```
-                       (\/)    (\/)
-                         \(o..o)/
-                         /`----'\
+                          (\/)    (\/)
+                            \(o..o)/
+                            /`----'\
 
-                       C R A B B Y
-                Many Claudes. One shell.
-   prepare projects · orchestrate claude · one terminal
+                          C R A B B Y
+                   Many Claudes. One shell.
+      prepare projects · orchestrate claude · one terminal
 
-────────────────────────────────────────────────────
-
-  ● test         Waiting for input  ·  1m ago
-                 main  ·  up 8m  ·  Sonnet 5  ·  64k tok
-
-  payments       feature/refunds  ·  Opus 4.8  ·  132k tok
-▌   ● refactor   Working  ·  up 2h
-    ● tests      Idle  ·  up 34m
-    ○ docs       Stopped
-
-  ○ SSH-AI       Stopped
-
-────────────────────────────────────────────────────
-3 workspaces   ·   3 active   ·   2 stopped   ·   1 working   ·   196k tokens today
-
-enter open   n new workspace   t new task   x stop   d remove
-r refresh   q quit   ·   F12 returns from a session
+╭──────────────────╮ ╭──────────────────╮ ╭──────────────────────────╮
+│ Workspaces       │ │ Tasks            │ │ Details                  │
+│                  │ │                  │ │                          │
+│ ▌ ● payments (3) │ │ ▌ ● refactor     │ │ status   Working         │
+│   ● test         │ │   ● tests        │ │ task     refactor        │
+│   ○ SSH-AI       │ │   ○ docs         │ │ branch   feature/refunds │
+│                  │ │                  │ │ model    Opus 4.8         │
+│                  │ │                  │ │ tokens   132k session     │
+│                  │ │                  │ │ uptime   2h14m            │
+│                  │ │                  │ │ activity Editing files    │
+╰──────────────────╯ ╰──────────────────╯ ╰──────────────────────────╯
+        5 workspaces   ·   2 active   ·   4 stopped   ·   196k tokens today
+        ↑↓ move   tab pane   enter open   n new   t task   x stop   d remove
+     i import   p packs   s settings   ? help   q quit   ·  F12 returns from a session
 ```
 
-The banner stays centred; the list and footer are left-aligned like a normal
-CLI, with each row's live data in a column to the right of its name. A workspace
-with one task shows as a single line; a workspace with several (like `payments`
-above) becomes a header with its tasks beneath it. The dashboard **refreshes
-automatically** (about once a second) and sorts by importance (**Running →
-Waiting → Stopped**, then alphabetically). See
-[Workspaces and tasks](#workspaces-and-tasks) for the model and
-[Workspace insights](#workspace-insights) for where the data comes from.
+The home screen is three columns — **Workspaces**, **Tasks**, **Details** — with
+the identity banner above and the actions and return-key hint below. Move the
+cursor with the arrows, switch columns with **Tab**, and press **Enter** to open
+the selected task. The dashboard **refreshes automatically** (about once a
+second) and sorts workspaces by importance (**Running → Waiting → Stopped**, then
+alphabetically). See [Workspaces and tasks](#workspaces-and-tasks) for the model
+and [Workspace insights](#workspace-insights) for where the Details come from.
 
+- **↑ ↓** move within the focused column; **Tab / Shift+Tab** (or **← →**) switch
+  between Workspaces and Tasks.
 - **Enter** opens the selected task in Claude. If it wasn't running, Crabby
   starts it for you.
-- **F12** (inside a session) brings you straight back to this list — no tmux
-  shortcuts to learn. The session keeps running in the background.
-- **n** adds the current directory as a new workspace (see [Packs](#packs)).
+- **F12** (inside a session) brings you straight back here — no tmux shortcuts to
+  learn. The session keeps running in the background.
+- **n** creates a new workspace from any folder (see [Packs](#packs)); **i**
+  imports every workspace found under a folder.
 - **t** starts a new task in the selected workspace.
 - **x** stops the highlighted task (asks first) — no need to exit Claude.
-- **d** removes the highlighted task, or the whole workspace for a single-task
-  row (asks first). Your files are kept; only Crabby forgets it.
-- **q** quits.
+- **d** removes the highlighted task, or the whole workspace (asks first). Your
+  files are kept; only Crabby forgets it.
+- **p** manages packs, **s** opens Settings, **?** shows the full key list, and
+  **q** quits.
 
-The return key is shown on a small Crabby status bar while you work, so you
-never have to remember it.
+Every shortcut is on screen, and the return key is shown on a small Crabby status
+bar while you work — so you never have to remember anything.
 
 ## Workspaces and tasks
 
 Crabby has three simple concepts:
 
 - **Workspace** — a project directory with a `CLAUDE.md`. This is the source of
-  truth; it's what `crabby init` and `crabby import` register.
+  truth; it's what **n** (new) and **i** (import) register.
 - **Task** — one Claude Code session working inside a workspace. A workspace can
   have several, each an independent session **sharing the same directory**.
 - **Claude session** — the actual running Claude, one per task, kept alive in
   its own tmux session (named automatically, e.g. `crabby_payments_tests`).
 
 One workspace, multiple tasks. This lets you run parallel efforts in the same
-repository without cloning it:
+repository without cloning it — all from the home screen:
 
-```bash
-cd ~/repos/payments
-crabby task create refactor     # start a "refactor" task and jump in
-crabby task create tests        # a second, independent Claude in the same repo
-crabby task list                # see them both
-crabby attach payments          # asks which task to open
-crabby attach payments tests    # or open one directly
-crabby task delete refactor     # done with it — the workspace stays
-```
+- Select the workspace and press **t** to start a new task (say `refactor`); it
+  opens straight away in its own Claude.
+- Press **t** again for a second, independent task (say `tests`) in the same repo.
+- Both appear in the **Tasks** column; **Tab** into it, pick one, **Enter** to
+  open, **d** to remove it (the workspace stays).
 
-Every workspace starts with one default task (`main`), so if you never touch
-`crabby task`, nothing changes: a workspace behaves exactly like a single
-session did before. Tasks are independent — Crabby does not coordinate them,
-share memory between them, or manage git branches; each is just its own Claude.
+Every workspace starts with one default task (`main`), so a workspace with a
+single task behaves exactly like a single session. Tasks are independent — Crabby
+does not coordinate them, share memory between them, or manage git branches; each
+is just its own Claude.
 
 ## Workspace insights
 
@@ -217,81 +205,66 @@ shows its tmux state, branch, and uptime.
 ## Adopting existing projects
 
 If you already use Claude Code, you probably have repositories with a
-`CLAUDE.md` in them. You don't need to recreate them — bring them in as they
-are.
+`CLAUDE.md` in them. You don't need to recreate them — bring them in as they are,
+from inside Crabby.
 
-**One project** — point `init` at it (no need to `cd` first):
+**One project** — press **n**, type (or paste) its path, and create it. A folder
+that already has a `CLAUDE.md` keeps it untouched.
 
-```bash
-crabby init ~/repos/payments
-```
-
-**A whole folder of them** — let Crabby find them:
-
-```bash
-crabby import ~/repos
-```
-
-`import` scans the tree for folders that contain a `CLAUDE.md` and shows what it
-found — a git repository isn't required. Pick the ones you want and press Enter:
+**A whole folder of them** — press **i**, point it at a parent folder, and let
+Crabby find them. It scans the tree for folders that contain a `CLAUDE.md` and
+shows what it found — a git repository isn't required. Pick the ones you want and
+press **Enter**:
 
 ```
-       (\/)    (\/)
-         \(o..o)/
-         /`----'\
+────────────────────────────────────────────────────
 
-       C R A B B Y
-Many Claudes. One shell.
+                  Import workspaces
 
-Import Claude workspaces
-Found 4 workspaces.
+                 Found 4 workspaces.
 
-▌ [x] ai-security   main
-  [x] frontend      main
-  [✓] payments      already imported
-  [ ] old-test      wip/spike
+               ▌ [x] ai-security   main
+                 [x] frontend      main
+                 [✓] payments      already imported
+                 [ ] old-test      wip/spike
 
-────────────────────────────────────
-space select   a all   enter import   q cancel
+────────────────────────────────────────────────────
+       space select   a all   enter import   esc back
 ```
 
 - **Space** toggles a workspace; **a** toggles all.
 - Projects you've already imported show `[✓]` and can't be added twice.
-- Everything importable starts checked, so adopting a folder is usually just
-  `crabby import ~/repos` then **Enter**.
+- Everything importable starts checked, so adopting a folder is usually just **i**,
+  the path, and **Enter**. The scan runs in the background, so a large folder
+  never freezes the interface.
 
 Import never edits your repositories — it registers them and writes Crabby's own
 `.claude/crabby.yaml`, leaving your existing `CLAUDE.md` and workflow untouched.
-Imported projects behave exactly like ones created with `crabby init`.
 
-`import` skips the obvious noise while scanning — `.git`, `node_modules`,
-`.venv`, `vendor`, and similar — and stops at the first `CLAUDE.md` on each
-branch of the tree, so a project's own subdirectory context files aren't
-imported as separate workspaces. When a folder is a git repository its current
-branch is shown for context; when it isn't, it's still importable.
+Scanning skips the obvious noise — `.git`, `node_modules`, `.venv`, `vendor`, and
+similar — and stops at the first `CLAUDE.md` on each branch of the tree, so a
+project's own subdirectory context files aren't imported as separate workspaces.
+When a folder is a git repository its current branch is shown for context; when
+it isn't, it's still importable.
 
 ## Commands
 
+Crabby is TUI-first: everything you do day to day lives inside the app, so the
+command line is intentionally tiny.
+
 | Command | What it does |
 | --- | --- |
-| `crabby` | Open the home screen (this is all you normally need). |
-| `crabby init [path]` | Register a workspace (the current directory, or `path`). Creates `.claude/crabby.yaml`, and a starter `CLAUDE.md` if none exists. |
-| `crabby import [path]` | Discover folders that already have a `CLAUDE.md` and import the ones you pick (the current directory, or `path`). |
-| `crabby task create <name>` | Create a task (a parallel Claude session) in the current workspace and open it. |
-| `crabby task list [workspace]` | List a workspace's tasks and their state. |
-| `crabby task delete <name> [workspace]` | Delete a task (the workspace stays). |
-| `crabby task restart <name> [workspace]` | Stop a task's session and start it fresh. |
-| `crabby ps` | Alias for `crabby`. |
-| `crabby attach [workspace] [task]` | Open a workspace's session; asks which task when several exist, or pass the task name. |
-| `crabby start [workspace] [task]` | Same as attach — launches the session if needed. |
-| `crabby rm [workspace]` | Remove a workspace from Crabby, stopping its tasks (files are kept). |
+| `crabby` | Open the application — the home screen and everything from there. |
 | `crabby doctor` | Check that WSL, Ubuntu, tmux, Claude, and crabby are present. |
 | `crabby version` | Print the installed version. |
+
+Creating and importing workspaces, managing tasks, and managing packs all moved
+into the interface — press **?** inside Crabby for the full key list.
 
 ## Packs
 
 A **pack** is a reusable project setup — nothing more than a directory of files
-that Crabby copies into a project when you run `crabby init`. No plugins, no
+that Crabby copies into a project when you create a workspace. No plugins, no
 templates, no variables: just folders.
 
 Packs live in:
@@ -329,32 +302,29 @@ version: 1.0.0
 
 ### Using a pack
 
-Run `crabby init` in a project (or press **n** on the home screen):
+Press **n** to create a workspace and point it at a folder:
 
 - **No packs installed** → Crabby writes a minimal default `CLAUDE.md`.
 - **One pack** → it's used automatically.
-- **Several packs** → Crabby shows a selector.
+- **Several packs** → Crabby shows a pack picker in the flow.
 
 Files that already exist in the project are **never overwritten** — they're
 reported and kept. Crabby always writes its own `.claude/crabby.yaml`
 (the registry metadata) regardless of the pack.
 
-### Creating your own pack
+### Managing packs
 
-Copy one of the bundled examples and edit it — that's the whole workflow. The
-repo ships a few in [`examples/`](examples/): `simple-pack`, `go-pack`,
-`docs-pack`.
+Press **p** (or **s** → Packs) to manage packs without leaving Crabby:
 
-```bash
-cp -r examples/go-pack ~/.config/crabby/packs/go
-# edit ~/.config/crabby/packs/go/pack.yaml (set the name)
-# edit ~/.config/crabby/packs/go/CLAUDE.md, add any other files
-```
+- **n** creates a new pack (a starter `pack.yaml` and `CLAUDE.md`).
+- **c** duplicates the selected pack under a new name.
+- **e** opens the pack directory in your `$EDITOR` (falling back to `vi`) so you
+  can edit its `CLAUDE.md` and add any files you want copied in.
+- **d** deletes a pack from disk (asks first).
 
-Next time you run `crabby init`, your pack is available (and with two or more,
-you get the selector). Packs are just directories, so managing them is `cp`,
-`rm`, and your editor. Crabby prints the packs directory after a plain `init`
-and shows it in the selector, so you always know where they go.
+Packs are still just directories under `~/.config/crabby/packs/`, so you can also
+copy one of the bundled examples in [`examples/`](examples/) (`simple-pack`,
+`go-pack`, `docs-pack`) and edit it by hand — but you never have to.
 
 ## Session states
 
@@ -407,15 +377,15 @@ cmd/
     crabby/            # Linux (WSL) entrypoint
     crabby-windows/    # Windows wrapper -> crabby.exe
 internal/
-    cli/               # cobra commands
-    initcmd/           # crabby init (+ pack application)
-    importcmd/         # crabby import (workspace discovery)
+    cli/               # cobra: `crabby`, `version`, `doctor`
+    initcmd/           # workspace initialization (+ pack application)
+    importcmd/         # workspace discovery for import
     insights/          # reads Claude transcripts for dashboard metrics
-    pack/              # local project packs
+    pack/              # local project packs (list + create/duplicate/delete)
     project/           # projects.json registry
     session/           # project <-> session mapping + state
     tmux/              # tmux driver (dedicated socket, F12 detach, status bar)
-    tui/               # bubble tea home screen + pack/import selectors
+    tui/               # bubble tea application (dashboard, forms, packs, settings)
     doctor/            # environment checks
     config/            # global config
     version/           # version (single source of truth: VERSION file)
