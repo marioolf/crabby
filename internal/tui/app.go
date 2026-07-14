@@ -10,6 +10,7 @@ package tui
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -275,8 +276,47 @@ func (m model) attach(p project.Project, task project.Task) (tea.Model, tea.Cmd)
 	// means a plain status bar, so never block the attach on it.
 	_ = m.tmux.Configure(m.cfg.DetachKey)
 	m.notice, m.noticeErr = "", false
-	cmd := m.tmux.AttachCmd(task.Session)
-	return m, tea.ExecProcess(cmd, func(err error) tea.Msg { return execDoneMsg{err} })
+	ex := &attachExec{cmd: m.tmux.AttachCmd(task.Session)}
+	return m, tea.Exec(ex, func(err error) tea.Msg { return execDoneMsg{err} })
+}
+
+// clearNormalBuffer is the escape sequence that clears the terminal's normal
+// (non-alternate) screen and homes the cursor.
+const clearNormalBuffer = "\033[2J\033[H"
+
+// attachExec runs the tmux attach as a tea.Exec command, clearing the terminal's
+// normal buffer either side of it. Attaching drops out of Crabby's alternate
+// screen, and on detach tmux prints "[detached (from session …)]" to the normal
+// buffer; without the clears that message accumulates in the shell and the
+// buffer-switch shows the leftover session for a moment. Clearing turns both into
+// a clean, blank transition.
+type attachExec struct{ cmd *exec.Cmd }
+
+func (a *attachExec) Run() error {
+	fmt.Fprint(os.Stdout, clearNormalBuffer)
+	err := a.cmd.Run()
+	fmt.Fprint(os.Stdout, clearNormalBuffer)
+	return err
+}
+
+// Bubble Tea wires its own I/O into a command only when unset; the attach
+// command is already bound to the real terminal, so these keep that binding.
+func (a *attachExec) SetStdin(r io.Reader) {
+	if a.cmd.Stdin == nil {
+		a.cmd.Stdin = r
+	}
+}
+
+func (a *attachExec) SetStdout(w io.Writer) {
+	if a.cmd.Stdout == nil {
+		a.cmd.Stdout = w
+	}
+}
+
+func (a *attachExec) SetStderr(w io.Writer) {
+	if a.cmd.Stderr == nil {
+		a.cmd.Stderr = w
+	}
 }
 
 // windowLabel is what shows in the tmux status bar: just the workspace for the
