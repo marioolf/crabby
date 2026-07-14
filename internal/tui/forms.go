@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ func (m model) startNewWorkspace() (tea.Model, tea.Cmd) {
 	m.screen = scrNewWorkspace
 	m.wsStep = wsStepDir
 	m.input = newTextInput(cwd)
+	_, m.wsMatches = dirCandidates(cwd)
 	m.notice = ""
 	return m, nil
 }
@@ -40,6 +42,14 @@ func (m model) updateNewWorkspace(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "esc":
 			m.goDashboard()
+		case "tab":
+			// Complete the typed path to the matching sub-directory, shell-style.
+			m.input = newTextInput(completePath(m.input.Value()))
+			_, m.wsMatches = dirCandidates(m.input.Value())
+		case "ctrl+o":
+			// Optional native folder picker (WSL → Windows dialog).
+			m.notice, m.noticeErr = "Opening the Windows folder picker…", false
+			return m, pickWindowsFolder
 		case "enter":
 			dir := strings.TrimSpace(m.input.Value())
 			if dir == "" {
@@ -60,6 +70,7 @@ func (m model) updateNewWorkspace(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		default:
 			m.input = m.input.update(msg)
+			_, m.wsMatches = dirCandidates(m.input.Value())
 		}
 	case wsStepPack:
 		switch msg.String() {
@@ -123,9 +134,120 @@ func (m model) viewNewWorkspace() string {
 		return m.frame("New workspace", b.String(), footer)
 	default:
 		body := "Directory to initialize:\n\n  " + m.input.view("path to a project folder")
-		footer := actionKey("enter", "continue") + "   " + actionKey("esc", "cancel")
+		if len(m.wsMatches) > 0 {
+			body += "\n\n  " + metaStyle.Render("subdirectories:") + "\n  " +
+				metaStyle.Render(wrapMatches(m.wsMatches, 60))
+		}
+		footer := strings.Join([]string{
+			actionKey("tab", "complete"), actionKey("ctrl+o", "windows folder"),
+			actionKey("enter", "continue"), actionKey("esc", "cancel"),
+		}, "   ")
 		return m.frame("New workspace", body, footer)
 	}
+}
+
+// dirCandidates returns the directory currently being completed and the names of
+// its sub-directories that match what has been typed — directory-only, so it
+// only ever offers valid workspace locations. It powers both the live suggestion
+// list and Tab completion.
+func dirCandidates(input string) (dir string, matches []string) {
+	raw := strings.TrimSpace(input)
+	// Detect the trailing separator on the raw text: expandHome cleans the path
+	// (via filepath.Abs), which drops it — but it is what distinguishes "list this
+	// directory's children" from "complete this last component".
+	trailing := strings.HasSuffix(raw, string(os.PathSeparator))
+	p := expandHome(raw)
+	var prefix string
+	switch {
+	case raw == "":
+		dir = "."
+	case trailing:
+		dir = p
+	default:
+		dir, prefix = filepath.Dir(p), filepath.Base(p)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return dir, nil
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		// Hide dot-directories unless the user has started typing one.
+		if strings.HasPrefix(name, ".") && !strings.HasPrefix(prefix, ".") {
+			continue
+		}
+		if strings.HasPrefix(name, prefix) {
+			matches = append(matches, name)
+		}
+	}
+	sort.Strings(matches)
+	return dir, matches
+}
+
+// completePath extends a typed path toward its matching sub-directory: a single
+// match is filled in with a trailing separator so drilling can continue; several
+// matches extend to their longest common prefix.
+func completePath(input string) string {
+	dir, matches := dirCandidates(input)
+	if len(matches) == 0 {
+		return input
+	}
+	if len(matches) == 1 {
+		return filepath.Join(dir, matches[0]) + string(os.PathSeparator)
+	}
+	lcp := matches[0]
+	for _, m := range matches[1:] {
+		lcp = commonPrefix(lcp, m)
+	}
+	return filepath.Join(dir, lcp)
+}
+
+func commonPrefix(a, b string) string {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	i := 0
+	for i < n && a[i] == b[i] {
+		i++
+	}
+	return a[:i]
+}
+
+// wrapMatches lays sub-directory names out across lines within width, each shown
+// with a trailing separator, capping the list so it never floods the screen.
+func wrapMatches(matches []string, width int) string {
+	const cap = 24
+	extra := 0
+	if len(matches) > cap {
+		extra = len(matches) - cap
+		matches = matches[:cap]
+	}
+	var lines []string
+	cur := ""
+	for _, name := range matches {
+		item := name + "/"
+		switch {
+		case cur == "":
+			cur = item
+		case len(cur)+2+len(item) > width:
+			lines = append(lines, cur)
+			cur = item
+		default:
+			cur += "  " + item
+		}
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+	out := strings.Join(lines, "\n  ")
+	if extra > 0 {
+		out += fmt.Sprintf("\n  … (+%d more)", extra)
+	}
+	return out
 }
 
 // selectLine renders one selectable row with the accent bar when chosen.
