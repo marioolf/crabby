@@ -123,8 +123,10 @@ and [Workspace insights](#workspace-insights) for where the Details come from.
   starts it for you.
 - **F12** (inside a session) brings you straight back here — no tmux shortcuts to
   learn. The session keeps running in the background.
-- **n** creates a new workspace from any folder (see [Packs](#packs)); **i**
-  imports every workspace found under a folder.
+- **n** creates a new workspace from any folder (see [Packs](#packs)) — the path
+  field completes with **Tab** and lists matching sub-directories as you type, and
+  **Ctrl+O** opens the native Windows folder picker; **i** imports every workspace
+  found under a folder.
 - **t** starts a new task in the selected workspace.
 - **x** stops the highlighted task (asks first) — no need to exit Claude.
 - **d** removes the highlighted task, or the whole workspace (asks first). Your

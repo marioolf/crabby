@@ -23,7 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- In-app **workspace creation** (n): pick a directory and a pack, no shell.
+- In-app **workspace creation** (n): pick a directory and a pack, no shell. The
+  path field completes with **Tab** and lists matching sub-directories as you
+  type; **Ctrl+O** opens the native Windows folder picker (WSL) as a convenience.
 - In-app **import** (i): scan a folder for workspaces with a `CLAUDE.md` and pick
   which to adopt; the scan runs off the UI thread so a large tree never freezes.
 - In-app **task management**: create (t), stop (x), remove (d), and open (Enter).

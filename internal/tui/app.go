@@ -79,6 +79,7 @@ type model struct {
 	// --- New-workspace flow ------------------------------------------------
 	wsStep     wsStep
 	wsDir      string
+	wsMatches  []string // sub-directories matching the typed path, for completion
 	packList   []pack.Pack
 	packCursor int
 
@@ -185,6 +186,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case discoverDoneMsg:
 		return m.applyDiscover(msg)
+
+	case folderPickedMsg:
+		if m.screen != scrNewWorkspace {
+			return m, nil
+		}
+		switch {
+		case msg.err != nil:
+			m.notice, m.noticeErr = msg.err.Error(), true
+		case msg.path == "":
+			m.notice, m.noticeErr = "Folder picker cancelled.", false
+		default:
+			m.wsStep = wsStepDir
+			m.input = newTextInput(msg.path)
+			_, m.wsMatches = dirCandidates(msg.path)
+			m.notice = ""
+		}
+		return m, nil
 
 	case editMsg:
 		return m.launchEditor(msg.dir)
