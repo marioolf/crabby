@@ -20,6 +20,7 @@ import (
 
 	"github.com/marioolf/crabby/internal/config"
 	"github.com/marioolf/crabby/internal/doctor"
+	"github.com/marioolf/crabby/internal/importcmd"
 	"github.com/marioolf/crabby/internal/insights"
 	"github.com/marioolf/crabby/internal/pack"
 	"github.com/marioolf/crabby/internal/project"
@@ -34,6 +35,7 @@ type screen int
 const (
 	scrDashboard screen = iota
 	scrNewWorkspace
+	scrImport
 	scrNewTask
 	scrPacks
 	scrSettings
@@ -78,6 +80,12 @@ type model struct {
 	wsDir      string
 	packList   []pack.Pack
 	packCursor int
+
+	// --- Import flow -------------------------------------------------------
+	importStep   importStep
+	importList   []importcmd.Workspace
+	importSel    []bool
+	importCursor int
 
 	// --- New-task flow -----------------------------------------------------
 	formProj project.Project
@@ -174,6 +182,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openTaskMsg:
 		return m.attach(msg.proj, msg.task)
 
+	case discoverDoneMsg:
+		return m.applyDiscover(msg)
+
 	case editMsg:
 		return m.launchEditor(msg.dir)
 
@@ -209,6 +220,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.screen {
 	case scrNewWorkspace:
 		return m.updateNewWorkspace(msg)
+	case scrImport:
+		return m.updateImport(msg)
 	case scrNewTask:
 		return m.updateNewTask(msg)
 	case scrPacks:
@@ -226,6 +239,8 @@ func (m model) View() string {
 	switch m.screen {
 	case scrNewWorkspace:
 		return m.viewNewWorkspace()
+	case scrImport:
+		return m.viewImport()
 	case scrNewTask:
 		return m.viewNewTask()
 	case scrPacks:
