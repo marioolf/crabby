@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -22,75 +24,98 @@ const (
 	Subtitle = "prepare projects · orchestrate claude · one terminal"
 )
 
-// crabArt is the crab in its resting pose. Its 3rd line contains a backtick and
-// its slashes are literal, so the string is written with escapes rather than a
-// raw literal. Do NOT reformat — the spacing is the art. This is the canonical
-// pose; the animation frames below are small variations of it.
+// crabArt is the crab in its resting pose: claws on top, then face, body, and
+// legs. Slashes are literal and the body line holds a backtick, so the strings
+// are written with escapes rather than raw literals. Do NOT reformat — the
+// spacing is the art. The animation poses below are variations of it.
 const crabArt = " (\\/)    (\\/)\n" +
 	"   \\(o..o)/\n" +
-	"   /`----'\\"
+	"   /`----'\\\n" +
+	"  //      \\\\"
 
-// crabWave flips the claws, and crabBlink closes the eyes — the two frames that,
-// alternated with the resting pose, make the crab look alive.
+// crabWave flips the claws and kicks the legs the other way; crabBlink closes
+// the eyes and tucks the legs. Cycled with the resting pose, the claws, legs and
+// eyes all move, so the crab reads as alive rather than just sliding about.
 const (
 	crabWave = " (/\\)    (/\\)\n" +
 		"   \\(o..o)/\n" +
-		"   /`----'\\"
+		"   /`----'\\\n" +
+		"  \\\\      //"
 	crabBlink = " (\\/)    (\\/)\n" +
 		"   \\(-..-)/\n" +
-		"   /`----'\\"
+		"   /`----'\\\n" +
+		"  /|      |\\"
 )
 
 var crabFrames = []string{crabArt, crabWave, crabBlink}
 
-// crabLane is the fixed width the crab is laid out in, so it can sway left and
-// right inside it without moving the rest of the banner. It is the widest crab
-// line (13) plus the sway range (4).
-const crabLane = 17
-
-// swayHome centres the crab in its lane for the still banner.
-const swayHome = 2
-
-// crabCycle is one loop of the animation: for each step, which frame to show and
-// how far to sway it. A gentle triangle sway with an occasional claw wave and a
-// blink — calm, not busy.
+// crabCycle is one loop of the animation: for each step, which pose to show and
+// how far to sway it. The sway is symmetric around zero so the crab's resting
+// position is centred over the wordmark, not off to one side.
 var crabCycle = []struct{ frame, sway int }{
-	{0, 0}, {0, 1}, {1, 2}, {0, 3}, {0, 4}, {2, 3}, {1, 2}, {0, 1},
+	{0, -2}, {0, -1}, {1, 0}, {0, 1}, {0, 2}, {2, 1}, {1, 0}, {0, -1},
 }
 
-// layoutCrab places a crab pose at a horizontal offset within the fixed lane, so
-// every frame is exactly crabLane wide and only the crab moves.
-func layoutCrab(art string, sway int) string {
-	return crabStyle.Width(crabLane).PaddingLeft(sway).Render(art)
+// bannerWidth is the width of the widest line (the support line); every line is
+// centred within it, and the crab sways around its centre.
+func bannerWidth() int { return lipgloss.Width(Subtitle) }
+
+// blockWidth is the width of the widest line in a multi-line block.
+func blockWidth(s string) int {
+	w := 0
+	for _, l := range strings.Split(s, "\n") {
+		if x := lipgloss.Width(l); x > w {
+			w = x
+		}
+	}
+	return w
 }
 
-// joinBanner stacks the crab, wordmark, tagline and support line, centred on the
-// widest line (the support line).
-func joinBanner(crab string) string {
-	return lipgloss.JoinVertical(lipgloss.Center,
-		crab,
+// centerIn left-pads a (possibly styled) line so it sits centred in width.
+func centerIn(width int, s string) string {
+	if pad := (width - lipgloss.Width(s)) / 2; pad > 0 {
+		return strings.Repeat(" ", pad) + s
+	}
+	return s
+}
+
+// renderBanner assembles the identity block with the crab at a given pose and
+// horizontal sway. The crab is centred over the wordmark at sway 0 and shifts by
+// sway columns either side; the wordmark, tagline and support line never move.
+func renderBanner(frame, sway int) string {
+	bw := bannerWidth()
+	crab := crabFrames[frame]
+	pad := (bw-blockWidth(crab))/2 + sway
+	if pad < 0 {
+		pad = 0
+	}
+	lead := strings.Repeat(" ", pad)
+
+	var lines []string
+	for _, l := range strings.Split(crab, "\n") {
+		lines = append(lines, lead+crabStyle.Render(l))
+	}
+	lines = append(lines,
 		"",
-		wordmarkStyle.Render(Wordmark),
-		taglineStyle.Render(Tagline),
-		subStyle.Render(Subtitle),
+		centerIn(bw, wordmarkStyle.Render(Wordmark)),
+		centerIn(bw, taglineStyle.Render(Tagline)),
+		centerIn(bw, subStyle.Render(Subtitle)),
 	)
+	return strings.Join(lines, "\n")
 }
 
-// Banner renders Crabby's identity block in its resting pose. This is the still
-// banner used outside the TUI (e.g. CLI help). Inside the app, BannerFrame gives
-// the animated version.
-func Banner() string {
-	return joinBanner(layoutCrab(crabArt, swayHome))
-}
+// Banner renders Crabby's identity block in its resting, centred pose. This is
+// the still banner used outside the TUI (e.g. CLI help); inside the app,
+// BannerFrame gives the animated version.
+func Banner() string { return renderBanner(0, 0) }
 
 // BannerFrame renders the banner at animation step t (any non-negative counter);
-// successive values sway the crab and cycle its pose. The lane is fixed width, so
-// the wordmark and support line never move.
+// successive values sway the crab and cycle its pose.
 func BannerFrame(t int) string {
 	step := crabCycle[t%len(crabCycle)]
-	return joinBanner(layoutCrab(crabFrames[step.frame], step.sway))
+	return renderBanner(step.frame, step.sway)
 }
 
 // BannerWidth is the display width of the banner (its widest line), stable across
 // animation frames.
-func BannerWidth() int { return lipgloss.Width(Banner()) }
+func BannerWidth() int { return bannerWidth() }

@@ -7,7 +7,8 @@ import "testing"
 func TestCrabArtIsExact(t *testing.T) {
 	want := " (\\/)    (\\/)\n" +
 		"   \\(o..o)/\n" +
-		"   /`----'\\"
+		"   /`----'\\\n" +
+		"  //      \\\\"
 	if crabArt != want {
 		t.Fatalf("crab art changed.\n got: %q\nwant: %q", crabArt, want)
 	}
