@@ -148,15 +148,23 @@ func (c Client) RenameWindow(session, name string) error {
 	return c.run("rename-window", "-t", exact(session), name)
 }
 
-// AttachChild attaches to the session as a child process, inheriting the
-// terminal. It blocks until the user leaves the session (detaches or Claude
-// exits) and then returns — which is what lets Crabby take back control.
-func (c Client) AttachChild(name string) error {
+// AttachCmd builds the command that attaches to a session, wired to the real
+// terminal. It does not run: the TUI hands it to tea.ExecProcess so Bubble Tea
+// can release the screen, run the attach, and restore itself afterwards —
+// giving a seamless step in and out of a Claude session without leaving Crabby.
+func (c Client) AttachCmd(name string) *exec.Cmd {
 	cmd := exec.Command(c.Binary, c.args("attach-session", "-t", exact(name))...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return cmd
+}
+
+// AttachChild attaches to the session as a child process, inheriting the
+// terminal. It blocks until the user leaves the session (detaches or Claude
+// exits) and then returns — which is what lets Crabby take back control.
+func (c Client) AttachChild(name string) error {
+	return c.AttachCmd(name).Run()
 }
 
 // Configure makes the session feel like part of Crabby rather than tmux:
