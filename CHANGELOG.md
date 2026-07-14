@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   delete packs — no manual filesystem editing required.
 - A **Settings** section (Packs, Diagnostics, About) and a **Help** screen (?)
   listing every navigation key, shortcut, and action.
+- The banner's crab is **gently animated** — it sways side to side, waves a claw
+  and blinks — driven by its own light redraw tick (no filesystem or tmux reads),
+  so it costs nothing. The wordmark is now **CRABBY** (letters together).
 
 ### Removed
 

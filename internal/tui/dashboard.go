@@ -262,7 +262,7 @@ func (m model) handleConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) viewDashboard() string {
 	var b strings.Builder
-	b.WriteString(center(m.width, Banner()))
+	b.WriteString(center(m.width, BannerFrame(m.anim)))
 	b.WriteString("\n\n")
 
 	if len(m.rows) == 0 {

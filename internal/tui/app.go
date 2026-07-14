@@ -30,6 +30,10 @@ import (
 
 const refreshEach = time.Second
 
+// animEach is how often the banner redraws. It only rebuilds the view (no disk
+// or tmux reads), so it can be brisk without being costly.
+const animEach = 500 * time.Millisecond
+
 // screen is which view the app is currently showing.
 type screen int
 
@@ -106,6 +110,9 @@ type model struct {
 	settingsPane   settingsPane
 	checks         []doctor.Check
 
+	// anim is the banner animation counter, advanced by its own light tick.
+	anim int
+
 	// notice is a transient message shown in the status bar (errors, results).
 	notice    string
 	noticeErr bool
@@ -135,6 +142,10 @@ func Run(cfg config.Config, t tmux.Client, coll *insights.Collector) error {
 
 type tickMsg time.Time
 
+// animMsg drives the banner animation, separately from the data refresh so the
+// crab can move without re-reading the filesystem or tmux.
+type animMsg time.Time
+
 // openTaskMsg asks the app to attach to a task, creating its session first if
 // needed. Every "open a Claude session" path funnels through here.
 type openTaskMsg struct {
@@ -156,13 +167,17 @@ func tick() tea.Cmd {
 	return tea.Tick(refreshEach, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
+func animTick() tea.Cmd {
+	return tea.Tick(animEach, func(t time.Time) tea.Msg { return animMsg(t) })
+}
+
 // bellCmd rings the terminal bell out-of-band (BEL does not disturb the screen).
 func bellCmd() tea.Msg {
 	fmt.Fprint(os.Stderr, "\a")
 	return nil
 }
 
-func (m model) Init() tea.Cmd { return tick() }
+func (m model) Init() tea.Cmd { return tea.Batch(tick(), animTick()) }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -176,6 +191,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(tick(), bellCmd)
 		}
 		return m, tick()
+
+	case animMsg:
+		m.anim++
+		return m, animTick()
 
 	case noticeMsg:
 		m.notice, m.noticeErr = msg.text, msg.isErr
@@ -368,7 +387,7 @@ func (m *model) goDashboard() {
 // reads as the same application. The status notice, if any, sits at the bottom.
 func (m model) frame(title, body, footer string) string {
 	var b strings.Builder
-	b.WriteString(center(m.width, Banner()))
+	b.WriteString(center(m.width, BannerFrame(m.anim)))
 	b.WriteString("\n\n")
 	b.WriteString(center(m.width, divider()))
 	b.WriteString("\n\n")
