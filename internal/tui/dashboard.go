@@ -180,6 +180,8 @@ func (m model) updateDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "n":
 		return m.startNewWorkspace()
+	case "i":
+		return m.startImport()
 	case "t":
 		if ws, ok := m.selectedWs(); ok {
 			return m.startNewTask(ws.proj)
@@ -529,7 +531,7 @@ func (m model) dashboardFooter() string {
 		actionKey("t", "task"), actionKey("x", "stop"), actionKey("d", "remove"),
 	}, "   ")
 	line2 := strings.Join([]string{
-		actionKey("p", "packs"), actionKey("s", "settings"),
+		actionKey("i", "import"), actionKey("p", "packs"), actionKey("s", "settings"),
 		actionKey("?", "help"), actionKey("q", "quit"),
 		helpStyle.Render("·  " + m.cfg.DetachKey + " returns from a session"),
 	}, "   ")

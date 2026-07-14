@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func (m model) updateHelp(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -33,6 +34,7 @@ var helpSections = []helpSection{
 	{"Workspaces & tasks", []helpEntry{
 		{"enter", "open the selected task in Claude"},
 		{"n", "new workspace (point it at a folder)"},
+		{"i", "import workspaces found under a folder"},
 		{"t", "new task in the selected workspace"},
 		{"x", "stop the selected task's session"},
 		{"d", "remove the selected task or workspace"},
@@ -52,8 +54,8 @@ func (m model) viewHelp() string {
 	width := 0
 	for _, s := range helpSections {
 		for _, e := range s.entries {
-			if len(e.key) > width {
-				width = len(e.key)
+			if w := lipgloss.Width(e.key); w > width {
+				width = w
 			}
 		}
 	}
@@ -63,7 +65,7 @@ func (m model) viewHelp() string {
 		}
 		b.WriteString(headerStyle.Render(s.title) + "\n")
 		for _, e := range s.entries {
-			pad := strings.Repeat(" ", width-len(e.key)+2)
+			pad := strings.Repeat(" ", width-lipgloss.Width(e.key)+2)
 			b.WriteString("  " + keyStyle.Render(e.key) + pad + helpStyle.Render(e.desc) + "\n")
 		}
 	}
