@@ -174,6 +174,10 @@ func (c Client) Configure(detachKey string) error {
 		// running command rename it.
 		{"set-option", "-g", "allow-rename", "off"},
 		{"set-option", "-g", "automatic-rename", "off"},
+		// Let the wheel scroll the pane's history instead of being forwarded to
+		// Claude Code as arrow keys — otherwise scrolling up cycles through old
+		// prompts rather than the response you're trying to read.
+		{"set-option", "-g", "mouse", "on"},
 		{"set-option", "-g", "status", "on"},
 		{"set-option", "-g", "status-justify", "centre"},
 		{"set-option", "-g", "status-style", "bg=colour235,fg=colour250"},
