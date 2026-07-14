@@ -14,7 +14,7 @@ func TestCrabArtIsExact(t *testing.T) {
 }
 
 func TestIdentityText(t *testing.T) {
-	if Wordmark != "C R A B B Y" {
+	if Wordmark != "CRABBY" {
 		t.Errorf("Wordmark = %q", Wordmark)
 	}
 	if Tagline != "Many Claudes. One shell." {
