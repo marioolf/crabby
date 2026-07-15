@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-15
+
+### Added
+
+- **Mission Control** (F12): a live overview of every Claude task at once — a
+  grid of cards, one per task, each showing its status, branch, uptime, model and
+  tokens, and a short live preview of the session's screen. Previews come from
+  `tmux capture-pane`, stripped of box art and Claude's status chrome so the card
+  shows recent output and the current prompt. Captures are cached and only
+  refreshed when a session produces new output, so it scales to dozens of tasks.
+  Arrow/Tab keys move between cards; Enter attaches and leaving returns to Mission
+  Control. It is an observation surface, kept separate from the dashboard.
+- **Import now scans the machine automatically.** Pressing `i` no longer asks for
+  a path: it scans the WSL home and the common project folders under each Windows
+  user on the mounted drives, matching CLAUDE.md and claude.md. The pick list
+  shows `Found N` / `Selected N` with space to toggle, `a`/`n` to select all/none,
+  `i`/enter to import, and `r` to rescan; the scan runs off the UI thread.
+
+### Changed
+
+- Import pruning now also skips `build`, `dist` and hidden config folders (so
+  `~/.claude` and Crabby's own packs no longer appear as importable workspaces).
+
 ## [0.8.0] - 2026-07-14
 
 ### Changed

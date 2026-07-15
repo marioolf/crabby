@@ -106,7 +106,7 @@ crabby
 ╰──────────────────╯ ╰──────────────────╯ ╰──────────────────────────╯
         5 workspaces   ·   2 active   ·   4 stopped   ·   196k tokens today
         ↑↓ move   tab pane   enter open   n new   t task   x stop   d remove
-     i import   p packs   s settings   ? help   q quit   ·  F12 returns from a session
+   F12 mission control   i import   p packs   s settings   ? help   q quit
 ```
 
 The home screen is three columns — **Workspaces**, **Tasks**, **Details** — with
@@ -121,12 +121,14 @@ and [Workspace insights](#workspace-insights) for where the Details come from.
   between Workspaces and Tasks.
 - **Enter** opens the selected task in Claude. If it wasn't running, Crabby
   starts it for you.
-- **F12** (inside a session) brings you straight back here — no tmux shortcuts to
-  learn. The session keeps running in the background.
+- **F12** toggles [Mission Control](#mission-control), the live overview of every
+  Claude task. Inside a Claude session, **F12** brings you straight back here —
+  no tmux shortcuts to learn; the session keeps running in the background.
 - **n** creates a new workspace from any folder (see [Packs](#packs)) — the path
   field completes with **Tab** and lists matching sub-directories as you type, and
-  **Ctrl+O** opens the native Windows folder picker; **i** imports every workspace
-  found under a folder.
+  **Ctrl+O** opens the native Windows folder picker.
+- **i** [imports existing Claude workspaces](#adopting-existing-projects) — it
+  scans your machine automatically.
 - **t** starts a new task in the selected workspace.
 - **x** stops the highlighted task (asks first) — no need to exit Claude.
 - **d** removes the highlighted task, or the whole workspace (asks first). Your
@@ -206,48 +208,101 @@ shows its tmux state, branch, and uptime.
 
 ## Adopting existing projects
 
-If you already use Claude Code, you probably have repositories with a
-`CLAUDE.md` in them. You don't need to recreate them — bring them in as they are,
-from inside Crabby.
+If you already use Claude Code, you probably have repositories with a `CLAUDE.md`
+in them. You don't need to recreate them — bring them in as they are, from inside
+Crabby.
 
-**One project** — press **n**, type (or paste) its path, and create it. A folder
-that already has a `CLAUDE.md` keeps it untouched.
-
-**A whole folder of them** — press **i**, point it at a parent folder, and let
-Crabby find them. It scans the tree for folders that contain a `CLAUDE.md` and
-shows what it found — a git repository isn't required. Pick the ones you want and
-press **Enter**:
+Press **i** and Crabby **scans your machine straight away** — no path to type. It
+looks through your WSL home and the common project folders under each Windows user
+on your mounted drives (`Desktop`, `Documents`, `source`, `repos`, `projects`, …),
+finds every folder with a `CLAUDE.md` (or `claude.md`), and lists them:
 
 ```
 ────────────────────────────────────────────────────
 
-                  Import workspaces
+                   Import workspaces
 
-                 Found 4 workspaces.
+        Found 4 Claude workspaces   ·   Selected: 2
 
-               ▌ [x] ai-security   main
-                 [x] frontend      main
-                 [✓] payments      already imported
-                 [ ] old-test      wip/spike
+        ▌ [✔] payments
+              ✔ already imported  ·  /repos/payments
+          [✔] frontend
+              ✔ already imported  ·  /mnt/c/Users/you/repos/frontend
+          [x] docs
+              main  ·  /repos/docs
+          [x] ai-security
+              wip/spike  ·  /repos/ai-security
 
 ────────────────────────────────────────────────────
-       space select   a all   enter import   esc back
+   ↑↓ move   space toggle   a all   n none   i import   esc back
 ```
 
-- **Space** toggles a workspace; **a** toggles all.
-- Projects you've already imported show `[✓]` and can't be added twice.
-- Everything importable starts checked, so adopting a folder is usually just **i**,
-  the path, and **Enter**. The scan runs in the background, so a large folder
-  never freezes the interface.
+- The scan runs off the UI thread, so it stays responsive; press **r** to rescan.
+- **Space** toggles a workspace; **a** selects all, **n** selects none. The
+  `Selected` count is always visible. Everything not-yet-imported starts checked,
+  so adopting a machine full of projects is often just **i** then **i** again.
+- Projects you've already imported show `✔` and can't be added twice.
+- Press **i** (or **Enter**) to import the selection; the workspaces appear on the
+  dashboard immediately.
 
 Import never edits your repositories — it registers them and writes Crabby's own
 `.claude/crabby.yaml`, leaving your existing `CLAUDE.md` and workflow untouched.
 
-Scanning skips the obvious noise — `.git`, `node_modules`, `.venv`, `vendor`, and
-similar — and stops at the first `CLAUDE.md` on each branch of the tree, so a
-project's own subdirectory context files aren't imported as separate workspaces.
-When a folder is a git repository its current branch is shown for context; when
-it isn't, it's still importable.
+Scanning skips the obvious noise — `.git`, `node_modules`, `.venv`, `vendor`,
+`build`, `dist`, and hidden config folders like `~/.claude` — and stops at the
+first context file on each branch of the tree, so a project's own subdirectory
+context files aren't imported as separate workspaces. When a folder is a git
+repository its current branch is shown for context; when it isn't, it's still
+importable.
+
+## Mission Control
+
+Press **F12** to open **Mission Control** — a live overview of *every* Claude task
+at once, so you can see what all your Claude workers are doing without attaching to
+each one. **F12** again returns to the dashboard.
+
+```
+────────────────────────────────────────────────────
+
+                   Mission Control
+
+╭──────────────────────────╮ ╭──────────────────────────╮
+│ ● payments:refactor      │ │ ● frontend               │
+│ Editing files            │ │ Waiting for input        │
+│ feature/refunds · Opus…  │ │ main · up 3h · 42k tok   │
+│ ─────────────────────────│ │ ─────────────────────────│
+│ Updated auth.go          │ │ ❯ add a dark theme       │
+│ ✻ Churned for 2m 15s     │ │ —                        │
+│ ❯ now run the tests      │ │                          │
+╰──────────────────────────╯ ╰──────────────────────────╯
+╭──────────────────────────╮ ╭──────────────────────────╮
+│ ● docs                   │ │ ○ ai-security            │
+│ Running command          │ │ Stopped                  │
+│ main · up 1h · 12k tok   │ │                          │
+│ ─────────────────────────│ │ ─────────────────────────│
+│ Writing summary...       │ │ —                        │
+│ Executing grep...        │ │                          │
+╰──────────────────────────╯ ╰──────────────────────────╯
+
+  ↑↓←→ move   enter open   r refresh   F12 dashboard   q quit
+```
+
+Each card is one task. It shows the status Crabby can read reliably — **Working**
+(with the current activity, when it can tell), **Waiting for input**, **Attached**,
+**Idle** or **Stopped** — plus the branch, uptime, model and token count when a
+transcript is available, and a short **live preview** of the session's screen.
+
+The preview comes from `tmux capture-pane`, reduced to the last few lines that
+actually carry content: Crabby strips the box art, blank lines and Claude's
+persistent status bar, so the card shows recent output and the current prompt
+rather than the whole terminal. Mission Control is an **observation surface**, not
+a terminal emulator — it never lets you type into multiple sessions at once.
+
+It refreshes automatically and stays cheap: a session's preview is only
+re-captured when that session has actually produced new output, so watching dozens
+of tasks costs almost nothing. Move between cards with the arrows or **Tab**; press
+**Enter** to attach to the highlighted task, and leaving it drops you back in
+Mission Control.
 
 ## Commands
 
