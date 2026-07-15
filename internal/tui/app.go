@@ -39,6 +39,7 @@ type screen int
 
 const (
 	scrDashboard screen = iota
+	scrMission
 	scrNewWorkspace
 	scrImport
 	scrNewTask
@@ -66,6 +67,10 @@ type model struct {
 
 	width, height int
 	screen        screen
+	// afterAttach is the screen to restore when a Claude session ends — so
+	// leaving a session opened from Mission Control returns there, not to the
+	// dashboard.
+	afterAttach screen
 
 	// --- Dashboard ---------------------------------------------------------
 	rows       []wsRow
@@ -79,6 +84,12 @@ type model struct {
 	working      map[string]bool
 	firstLoad    bool
 	ringBell     bool
+	// sessions is the tmux snapshot from the last refresh, reused within the
+	// same tick (e.g. by Mission Control) to avoid a second tmux call.
+	sessions map[string]tmux.Session
+
+	// mc is Mission Control's state, kept separate from the dashboard's.
+	mc missionState
 
 	// --- New-workspace flow ------------------------------------------------
 	wsStep     wsStep
@@ -187,6 +198,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.refresh()
+		if m.screen == scrMission {
+			m.refreshMission()
+		}
 		if m.screen == scrDashboard && m.ringBell {
 			return m, tea.Batch(tick(), bellCmd)
 		}
@@ -227,8 +241,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.launchEditor(msg.dir)
 
 	case execDoneMsg:
-		m.screen = scrDashboard
+		m.screen = m.afterAttach
 		m.refresh()
+		if m.screen == scrMission {
+			m.refreshMission()
+		}
 		if msg.err != nil {
 			m.notice, m.noticeErr = "session ended with an error: "+msg.err.Error(), true
 		}
@@ -253,9 +270,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleKey routes a keypress to the active screen.
+// handleKey routes a keypress to the active screen. F12 is handled first, from
+// anywhere, so Mission Control is always one key away (and one key back).
 func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "f12" {
+		if m.screen == scrMission {
+			m.goDashboard()
+			return m, nil
+		}
+		return m.startMission()
+	}
 	switch m.screen {
+	case scrMission:
+		return m.updateMission(msg)
 	case scrNewWorkspace:
 		return m.updateNewWorkspace(msg)
 	case scrImport:
@@ -275,6 +302,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	switch m.screen {
+	case scrMission:
+		return m.viewMission()
 	case scrNewWorkspace:
 		return m.viewNewWorkspace()
 	case scrImport:
@@ -296,6 +325,13 @@ func (m model) View() string {
 // rename) run inline; the blocking attach is handed to tea.ExecProcess so Bubble
 // Tea releases the screen for Claude and restores the dashboard afterwards.
 func (m model) attach(p project.Project, task project.Task) (tea.Model, tea.Cmd) {
+	// Remember where to land when the session ends: back in Mission Control if
+	// that's where we came from, otherwise the dashboard.
+	if m.screen == scrMission {
+		m.afterAttach = scrMission
+	} else {
+		m.afterAttach = scrDashboard
+	}
 	if !m.tmux.HasSession(task.Session) {
 		if _, err := exec.LookPath(m.cfg.ClaudeCommand); err != nil {
 			m.notice = fmt.Sprintf("Claude Code not found on PATH (looked for %q)", m.cfg.ClaudeCommand)

@@ -11,6 +11,7 @@ import (
 	"github.com/marioolf/crabby/internal/importcmd"
 	"github.com/marioolf/crabby/internal/insights"
 	"github.com/marioolf/crabby/internal/pack"
+	"github.com/marioolf/crabby/internal/session"
 	"github.com/marioolf/crabby/internal/tmux"
 )
 
@@ -35,6 +36,16 @@ func TestEveryScreenRenders(t *testing.T) {
 		setup func(m *model)
 	}{
 		{"dashboard-empty", func(m *model) { m.screen = scrDashboard }},
+		{"mission-empty", func(m *model) { m.screen = scrMission }},
+		{"mission-cards", func(m *model) {
+			m.screen = scrMission
+			m.mc.cards = []missionCard{
+				{label: "payments", state: session.Waiting, working: true, branch: "main",
+					insight: insights.Insight{Model: "Opus 4.8", SessionTokens: 132000, Activity: insights.Editing},
+					preview: []string{"Updated auth.go", "Running tests..."}},
+				{label: "docs", state: session.Stopped},
+			}
+		}},
 		{"new-workspace-dir", func(m *model) {
 			m.screen = scrNewWorkspace
 			m.wsStep = wsStepDir
@@ -121,5 +132,20 @@ func TestDashboardTransitions(t *testing.T) {
 		if got != c.want {
 			t.Errorf("key %q -> screen %d, want %d", c.key, got, c.want)
 		}
+	}
+}
+
+func TestF12TogglesMissionControl(t *testing.T) {
+	m := baseModel()
+	m.screen = scrDashboard
+	f12 := tea.KeyMsg{Type: tea.KeyF12}
+
+	next, _ := m.handleKey(f12)
+	if s := next.(model).screen; s != scrMission {
+		t.Fatalf("F12 from dashboard -> screen %d, want mission", s)
+	}
+	back, _ := next.(model).handleKey(f12)
+	if s := back.(model).screen; s != scrDashboard {
+		t.Fatalf("F12 from mission -> screen %d, want dashboard", s)
 	}
 }

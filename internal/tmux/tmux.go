@@ -162,6 +162,20 @@ func (c Client) AttachCmd(name string) *exec.Cmd {
 	return cmd
 }
 
+// CapturePane returns the current visible content of a session's active pane,
+// used by Mission Control for a live preview. The session name is passed plain
+// (capture-pane's target-pane does not accept the "=" exact form); callers only
+// capture sessions that exist, and tmux resolves an existing exact name before
+// any prefix, so this cannot land on the wrong session. A missing session or any
+// error yields "".
+func (c Client) CapturePane(name string) string {
+	out, err := c.output("capture-pane", "-t", name, "-p")
+	if err != nil {
+		return ""
+	}
+	return out
+}
+
 // Configure makes the session feel like part of Crabby rather than tmux:
 //   - a single, prefix-free key (detachKey) returns to Crabby;
 //   - a small, Crabby-branded status bar shows how to get back.

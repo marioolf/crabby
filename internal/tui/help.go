@@ -41,6 +41,7 @@ var helpSections = []helpSection{
 		{"r", "refresh now"},
 	}},
 	{"Elsewhere", []helpEntry{
+		{"F12", "Mission Control — live view of every task"},
 		{"p", "manage packs (new / duplicate / edit / delete)"},
 		{"s", "settings — packs, diagnostics, about"},
 		{"?", "this help"},
