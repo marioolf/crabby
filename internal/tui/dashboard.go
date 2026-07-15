@@ -181,6 +181,10 @@ func (m model) updateDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "n":
 		return m.startNewWorkspace()
+	case "o":
+		if ws, ok := m.selectedWs(); ok {
+			return m, openFolderCmd(ws.proj.Path)
+		}
 	case "i":
 		return m.startImport()
 	case "t":
@@ -529,7 +533,8 @@ func (m model) dashboardFooter() string {
 	line1 := strings.Join([]string{
 		actionKey("↑↓", "move"), actionKey("tab", "pane"),
 		actionKey("enter", "open"), actionKey("n", "new"),
-		actionKey("t", "task"), actionKey("x", "stop"), actionKey("d", "remove"),
+		actionKey("t", "task"), actionKey("o", "folder"),
+		actionKey("x", "stop"), actionKey("d", "remove"),
 	}, "   ")
 	line2 := strings.Join([]string{
 		actionKey("F12", "mission control"), actionKey("i", "import"),

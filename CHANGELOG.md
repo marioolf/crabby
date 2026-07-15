@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shows `Found N` / `Selected N` with space to toggle, `a`/`n` to select all/none,
   `i`/enter to import, and `r` to rescan; the scan runs off the UI thread.
 
+- **Open a workspace's folder** (o) in the file manager (Windows Explorer on
+  WSL), so you can drop files into a workspace without copying its path.
+
 ### Changed
 
 - Import pruning now also skips `build`, `dist` and hidden config folders (so
