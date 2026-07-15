@@ -132,6 +132,10 @@ and [Workspace insights](#workspace-insights) for where the Details come from.
 - **t** starts a new task in the selected workspace.
 - **o** opens the selected workspace's folder in the file manager (Windows
   Explorer on WSL), so you can drop files straight into it.
+- **e** relinks a workspace whose folder you've moved or renamed: Crabby flags it
+  as `⚠ missing`, and **e** points it at the new folder (updating its name and
+  path, keeping its tasks). Crabby can't guess where a folder went, so this is how
+  you tell it.
 - **x** stops the highlighted task (asks first) — no need to exit Claude.
 - **d** removes the highlighted task, or the whole workspace (asks first). Your
   files are kept; only Crabby forgets it.
@@ -243,7 +247,8 @@ finds every folder with a `CLAUDE.md` (or `claude.md`), and lists them:
 - **Space** toggles a workspace; **a** selects all, **n** selects none. The
   `Selected` count is always visible. Everything not-yet-imported starts checked,
   so adopting a machine full of projects is often just **i** then **i** again.
-- Projects you've already imported show `✔` and can't be added twice.
+- Projects you've already imported show `✔` and can't be added twice — press **d**
+  on one to un-import it (Crabby forgets it; your files are kept).
 - Press **i** (or **Enter**) to import the selection; the workspaces appear on the
   dashboard immediately.
 

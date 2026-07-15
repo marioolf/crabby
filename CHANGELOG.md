@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Open a workspace's folder** (o) in the file manager (Windows Explorer on
   WSL), so you can drop files into a workspace without copying its path.
+- **Relink a moved or renamed workspace** (e). When a workspace's folder is
+  renamed or moved, the dashboard now flags it as `⚠ missing` and `o` explains
+  why instead of failing; pressing `e` points it at its new folder (with the same
+  Tab completion) and updates both its name and path, keeping its tasks.
+- **Un-import from the import screen** (d): remove an already-imported workspace
+  from Crabby without leaving the import view (its files are kept).
 
 ### Changed
 

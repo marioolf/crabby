@@ -41,6 +41,7 @@ const (
 	scrDashboard screen = iota
 	scrMission
 	scrNewWorkspace
+	scrRelink
 	scrImport
 	scrNewTask
 	scrPacks
@@ -103,6 +104,9 @@ type model struct {
 	importList   []importcmd.Workspace
 	importSel    []bool
 	importCursor int
+
+	// --- Relink flow -------------------------------------------------------
+	relinkProj project.Project
 
 	// --- New-task flow -----------------------------------------------------
 	formProj project.Project
@@ -285,6 +289,8 @@ func (m model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateMission(msg)
 	case scrNewWorkspace:
 		return m.updateNewWorkspace(msg)
+	case scrRelink:
+		return m.updateRelink(msg)
 	case scrImport:
 		return m.updateImport(msg)
 	case scrNewTask:
@@ -306,6 +312,8 @@ func (m model) View() string {
 		return m.viewMission()
 	case scrNewWorkspace:
 		return m.viewNewWorkspace()
+	case scrRelink:
+		return m.viewRelink()
 	case scrImport:
 		return m.viewImport()
 	case scrNewTask:

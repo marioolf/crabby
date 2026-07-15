@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -13,6 +14,13 @@ import (
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/session"
 )
+
+// dirExists reports whether path is an existing directory, used to flag a
+// workspace whose folder has been moved or renamed.
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
 
 // taskRow is one task's live state within a workspace.
 type taskRow struct {
@@ -29,7 +37,8 @@ type wsRow struct {
 	branch  string
 	insight insights.Insight
 	tasks   []taskRow
-	best    int // best (lowest) task rank, for ordering workspaces
+	best    int  // best (lowest) task rank, for ordering workspaces
+	missing bool // the workspace's directory no longer exists on disk
 }
 
 // repr picks a representative state and working flag for the workspace, used for
@@ -69,7 +78,7 @@ func (m *model) refresh() {
 	rising := false
 	rows := make([]wsRow, 0, len(projects))
 	for _, p := range projects {
-		r := wsRow{proj: p, branch: p.Branch(), insight: m.insights.For(p.Path), best: 99}
+		r := wsRow{proj: p, branch: p.Branch(), insight: m.insights.For(p.Path), best: 99, missing: !dirExists(p.Path)}
 		for _, tk := range p.Tasks {
 			info, present := sessions[tk.Session]
 			tr := taskRow{task: tk, state: session.Classify(present, info.Attached)}
@@ -183,7 +192,15 @@ func (m model) updateDashboard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.startNewWorkspace()
 	case "o":
 		if ws, ok := m.selectedWs(); ok {
+			if ws.missing {
+				m.notice, m.noticeErr = "Folder not found: "+ws.proj.Path+" — moved or renamed? Press e to relink.", true
+				return m, nil
+			}
 			return m, openFolderCmd(ws.proj.Path)
+		}
+	case "e":
+		if ws, ok := m.selectedWs(); ok {
+			return m.startRelink(ws.proj)
 		}
 	case "i":
 		return m.startImport()
@@ -469,6 +486,9 @@ func (m model) detailColumn(w, h int) string {
 	}
 	add("status", stateLabel(tr.state, tr.working))
 	add("task", nameStyle.Render(tr.task.Name))
+	if ws.missing {
+		add("folder", errorStyle.Render("⚠ missing — moved or renamed (e to relink)"))
+	}
 	add("branch", ws.branch)
 	if ins.Model != "" {
 		add("model", ins.Model)
@@ -537,8 +557,8 @@ func (m model) dashboardFooter() string {
 		actionKey("x", "stop"), actionKey("d", "remove"),
 	}, "   ")
 	line2 := strings.Join([]string{
-		actionKey("F12", "mission control"), actionKey("i", "import"),
-		actionKey("p", "packs"), actionKey("s", "settings"),
+		actionKey("e", "relink"), actionKey("F12", "mission control"),
+		actionKey("i", "import"), actionKey("p", "packs"), actionKey("s", "settings"),
 		actionKey("?", "help"), actionKey("q", "quit"),
 	}, "   ")
 	return line1 + "\n" + line2
