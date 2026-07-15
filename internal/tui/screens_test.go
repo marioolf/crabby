@@ -46,10 +46,9 @@ func TestEveryScreenRenders(t *testing.T) {
 			m.wsDir = "/tmp/x"
 			m.packList = []pack.Pack{{Name: "go", Description: "Go"}}
 		}},
-		{"import-path", func(m *model) {
+		{"import-scanning", func(m *model) {
 			m.screen = scrImport
-			m.importStep = importStepPath
-			m.input = newTextInput("/tmp")
+			m.importStep = importStepScanning
 		}},
 		{"import-pick", func(m *model) {
 			m.screen = scrImport
