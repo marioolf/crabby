@@ -11,6 +11,7 @@ import (
 	"github.com/marioolf/crabby/internal/importcmd"
 	"github.com/marioolf/crabby/internal/insights"
 	"github.com/marioolf/crabby/internal/pack"
+	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/session"
 	"github.com/marioolf/crabby/internal/tmux"
 )
@@ -56,6 +57,11 @@ func TestEveryScreenRenders(t *testing.T) {
 			m.wsStep = wsStepPack
 			m.wsDir = "/tmp/x"
 			m.packList = []pack.Pack{{Name: "go", Description: "Go"}}
+		}},
+		{"relink", func(m *model) {
+			m.screen = scrRelink
+			m.relinkProj = project.Project{Name: "payments", Path: "/repos/payments"}
+			m.input = newTextInput("/repos/payments-new")
 		}},
 		{"import-scanning", func(m *model) {
 			m.screen = scrImport

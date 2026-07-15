@@ -142,6 +142,42 @@ func Register(p Project) error {
 	return Save(projects)
 }
 
+// Relink points an existing workspace at a new directory — for when its folder
+// has been moved or renamed — updating both its path and its name (to the new
+// folder's base name). Its tasks are kept as they are: their tmux session names
+// are stored, so the running sessions still match after the rename. Returns
+// ErrNotFound if oldName isn't registered, or an error if newPath isn't an
+// existing directory or its name is already taken by another workspace.
+func Relink(oldName, newPath string) error {
+	abs, err := filepath.Abs(newPath)
+	if err != nil {
+		return err
+	}
+	if info, statErr := os.Stat(abs); statErr != nil || !info.IsDir() {
+		return fmt.Errorf("%q is not a directory", newPath)
+	}
+	newName := filepath.Base(abs)
+
+	projects, err := Load()
+	if err != nil {
+		return err
+	}
+	idx := -1
+	for i := range projects {
+		if projects[i].Name == oldName {
+			idx = i
+		} else if projects[i].Name == newName {
+			return fmt.Errorf("a workspace named %q already exists", newName)
+		}
+	}
+	if idx < 0 {
+		return ErrNotFound
+	}
+	projects[idx].Name = newName
+	projects[idx].Path = abs
+	return Save(projects)
+}
+
 // Remove deletes a project from the registry. It does not touch any files on
 // disk. Returns ErrNotFound if no such project is registered.
 func Remove(name string) error {

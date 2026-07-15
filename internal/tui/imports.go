@@ -8,6 +8,7 @@ import (
 
 	"github.com/marioolf/crabby/internal/importcmd"
 	"github.com/marioolf/crabby/internal/initcmd"
+	"github.com/marioolf/crabby/internal/project"
 )
 
 // importStep is which step of the import flow is on screen: the machine scan, or
@@ -71,6 +72,12 @@ func (m model) updateImport(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.setAllImports(true)
 		case "n":
 			m.setAllImports(false)
+		case "d":
+			// Un-import: remove an already-imported workspace from Crabby, so a
+			// mistaken import (or a stale one) can be undone without leaving here.
+			if len(m.importList) > 0 && m.importList[m.importCursor].Imported {
+				return m.unimportAt(m.importCursor)
+			}
 		case "r":
 			m.importStep = importStepScanning
 			m.importList = nil
@@ -104,6 +111,32 @@ func (m model) applyDiscover(msg discoverDoneMsg) (tea.Model, tea.Cmd) {
 	}
 	m.importCursor = 0
 	m.importStep = importStepPick
+	return m, nil
+}
+
+// unimportAt removes the workspace registered at the item's path, flipping the
+// row back to an importable state.
+func (m model) unimportAt(i int) (tea.Model, tea.Cmd) {
+	w := m.importList[i]
+	name := ""
+	if projects, err := project.Load(); err == nil {
+		for _, p := range projects {
+			if p.Path == w.Path {
+				name = p.Name
+			}
+		}
+	}
+	if name == "" {
+		m.notice, m.noticeErr = "That workspace isn't registered.", true
+		return m, nil
+	}
+	if err := project.Remove(name); err != nil {
+		m.notice, m.noticeErr = err.Error(), true
+		return m, nil
+	}
+	m.importList[i].Imported = false
+	m.importSel[i] = true
+	m.notice, m.noticeErr = "Removed "+name+" from Crabby (files kept)", false
 	return m, nil
 }
 
@@ -195,7 +228,8 @@ func (m model) viewImport() string {
 
 	footer := strings.Join([]string{
 		actionKey("↑↓", "move"), actionKey("space", "toggle"), actionKey("a", "all"),
-		actionKey("n", "none"), actionKey("i", "import"), actionKey("esc", "back"),
+		actionKey("n", "none"), actionKey("i", "import"), actionKey("d", "un-import"),
+		actionKey("esc", "back"),
 	}, "   ")
 	return m.frame("Import workspaces", b.String(), footer)
 }
