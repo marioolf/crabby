@@ -64,6 +64,7 @@ func (m *model) refresh() {
 		projects = nil
 	}
 	sessions := m.tmux.ListSessions()
+	m.sessions = sessions
 
 	rising := false
 	rows := make([]wsRow, 0, len(projects))
@@ -531,9 +532,9 @@ func (m model) dashboardFooter() string {
 		actionKey("t", "task"), actionKey("x", "stop"), actionKey("d", "remove"),
 	}, "   ")
 	line2 := strings.Join([]string{
-		actionKey("i", "import"), actionKey("p", "packs"), actionKey("s", "settings"),
+		actionKey("F12", "mission control"), actionKey("i", "import"),
+		actionKey("p", "packs"), actionKey("s", "settings"),
 		actionKey("?", "help"), actionKey("q", "quit"),
-		helpStyle.Render("·  " + m.cfg.DetachKey + " returns from a session"),
 	}, "   ")
 	return line1 + "\n" + line2
 }
