@@ -130,6 +130,8 @@ and [Workspace insights](#workspace-insights) for where the Details come from.
 - **i** [imports existing Claude workspaces](#adopting-existing-projects) — it
   scans your machine automatically.
 - **t** starts a new task in the selected workspace.
+- **o** opens the selected workspace's folder in the file manager (Windows
+  Explorer on WSL), so you can drop files straight into it.
 - **x** stops the highlighted task (asks first) — no need to exit Claude.
 - **d** removes the highlighted task, or the whole workspace (asks first). Your
   files are kept; only Crabby forgets it.

@@ -36,6 +36,7 @@ var helpSections = []helpSection{
 		{"n", "new workspace (point it at a folder)"},
 		{"i", "import workspaces found under a folder"},
 		{"t", "new task in the selected workspace"},
+		{"o", "open the workspace's folder in the file manager"},
 		{"x", "stop the selected task's session"},
 		{"d", "remove the selected task or workspace"},
 		{"r", "refresh now"},
