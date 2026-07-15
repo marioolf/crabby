@@ -1,16 +1,5 @@
-# Crabby
+<img width="967" height="141" alt="image" src="https://github.com/user-attachments/assets/63df5554-ea50-4a4e-9abd-4784df9ffcec" />
 
-```
- (\/)    (\/)
-   \(o..o)/
-   /`----'\
-
-     C R A B B Y
-```
-
-**Many Claudes. One shell.**
-
-_prepare projects · orchestrate claude · one terminal_
 
 A workspace manager for Claude Code — _by [marioolf](https://github.com/marioolf) · [github.com/marioolf/crabby](https://github.com/marioolf/crabby)_
 
