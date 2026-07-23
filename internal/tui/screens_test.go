@@ -22,6 +22,7 @@ func baseModel() model {
 		cfg:          config.Default(),
 		tmux:         tmux.New("tmux"),
 		insights:     insights.New(),
+		agents:       defaultRegistry(config.Default()),
 		width:        120,
 		height:       40,
 		lastActivity: map[string]time.Time{},

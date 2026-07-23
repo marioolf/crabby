@@ -12,12 +12,16 @@ import (
 	"github.com/marioolf/crabby/internal/insights"
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/session"
+	"github.com/marioolf/crabby/internal/ui/banner"
+	"github.com/marioolf/crabby/internal/ui/theme"
 )
 
-// Mission Control is a live overview of every Claude task at once: one card per
-// task, each showing its status and a short preview of what its tmux session is
-// currently showing. It is an observation surface — never a terminal emulator —
-// and is kept entirely separate from the dashboard's rendering.
+// Mission Control is a live overview of every agent session at once: one card
+// per task, each showing which agent runs it, its status, and a short preview of
+// what its tmux session is currently showing. It is an observation surface —
+// never a terminal emulator — and is kept entirely separate from the dashboard's
+// rendering. The model is agent-first: a card is an Agent Session, not a "Claude
+// window", so the same view will hold other agents unchanged.
 
 // missionState is Mission Control's own state, independent of the dashboard.
 type missionState struct {
@@ -33,11 +37,12 @@ type capture struct {
 	lines    []string
 }
 
-// missionCard is one task's live snapshot.
+// missionCard is one agent session's live snapshot.
 type missionCard struct {
 	proj    project.Project
 	task    project.Task
 	label   string
+	agent   string // the agent's display name, e.g. "Claude Code"
 	state   session.State
 	working bool
 	branch  string
@@ -48,7 +53,7 @@ type missionCard struct {
 
 const (
 	missionPreviewLines = 3
-	missionCardBody     = missionPreviewLines + 4 // title, status, meta, divider
+	missionCardBody     = missionPreviewLines + 5 // title, agent, status, meta, divider
 )
 
 func (m model) startMission() (tea.Model, tea.Cmd) {
@@ -88,6 +93,7 @@ func (m *model) refreshMission() {
 				proj:    p,
 				task:    tk,
 				label:   windowLabel(p, tk),
+				agent:   m.agentFor(tk).Name(),
 				state:   session.Classify(present, info.Attached),
 				branch:  branch,
 				insight: ins,
@@ -240,7 +246,7 @@ func (m model) updateMission(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) viewMission() string {
 	if len(m.mc.cards) == 0 {
-		body := metaStyle.Render("No Claude tasks yet.\nCreate one with  t  on the dashboard, then F12 to watch them here.")
+		body := metaStyle.Render("No agent sessions yet.\nCreate a task with  t  on the dashboard, then F12 to watch them here.")
 		return m.frame("Mission Control", body, m.missionFooter())
 	}
 
@@ -321,7 +327,7 @@ func (m model) missionRowBudget() int {
 	if h <= 0 {
 		h = 24
 	}
-	avail := h - lipgloss.Height(Banner()) - 8
+	avail := h - lipgloss.Height(banner.Logo()) - 8
 	if avail < missionCardBody+2 {
 		avail = missionCardBody + 2
 	}
@@ -344,6 +350,7 @@ func (m model) renderCard(c missionCard, focused bool, cw int) string {
 	statusText, statusStyle := cardStatus(c)
 	var lines []string
 	lines = append(lines, dotStyle.Render(dot)+" "+name)
+	lines = append(lines, agentStyle.Render(truncate(c.agent, inner)))
 	lines = append(lines, statusStyle.Render(truncate(statusText, inner)))
 	lines = append(lines, metaStyle.Render(truncate(cardMeta(c), inner)))
 	lines = append(lines, dividerStyle.Render(strings.Repeat("─", inner)))
@@ -362,7 +369,7 @@ func (m model) renderCard(c missionCard, focused bool, cw int) string {
 	if focused {
 		box = box.BorderForeground(accent)
 	} else {
-		box = box.BorderForeground(lipgloss.Color("240"))
+		box = box.BorderForeground(theme.Border)
 	}
 	return box.Render(strings.Join(lines, "\n"))
 }

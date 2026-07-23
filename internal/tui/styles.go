@@ -9,38 +9,44 @@ import (
 
 	"github.com/marioolf/crabby/internal/insights"
 	"github.com/marioolf/crabby/internal/session"
+	"github.com/marioolf/crabby/internal/ui/banner"
+	"github.com/marioolf/crabby/internal/ui/theme"
 )
 
-// accent is Crabby's primary highlight colour (the crab's orange).
-const accent = lipgloss.Color("#FF6B4A")
+// accent is Crabby's brand highlight, drawn from the design system so the coral
+// identity is the same everywhere. Every style below is built from theme tokens
+// — no colour is defined here directly.
+const accent = theme.Primary
 
-// Shared styles for every screen, so the whole app reads as one surface.
+// Shared styles for every screen, so the whole app reads as one surface. They
+// are the design system rendered into lipgloss: brand, text and semantic tokens
+// mapped onto the roles Crabby's interface actually has.
 var (
-	dividerStyle = lipgloss.NewStyle().Faint(true)
-	metaStyle    = lipgloss.NewStyle().Faint(true)
-	helpStyle    = lipgloss.NewStyle().Faint(true)
-	nameStyle    = lipgloss.NewStyle()
-	selNameStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("231"))
-	barStyle     = lipgloss.NewStyle().Foreground(accent)
-	confirmStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
-	workingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	errorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
-	okStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	dividerStyle = lipgloss.NewStyle().Foreground(theme.Border)
+	metaStyle    = lipgloss.NewStyle().Foreground(theme.TextMuted)
+	helpStyle    = lipgloss.NewStyle().Foreground(theme.TextMuted)
+	nameStyle    = lipgloss.NewStyle().Foreground(theme.Text)
+	selNameStyle = lipgloss.NewStyle().Bold(true).Foreground(theme.Text)
+	barStyle     = lipgloss.NewStyle().Foreground(theme.Primary)
+	confirmStyle = lipgloss.NewStyle().Bold(true).Foreground(theme.Warning)
+	workingStyle = lipgloss.NewStyle().Foreground(theme.PrimaryBright)
+	errorStyle   = lipgloss.NewStyle().Foreground(theme.Error)
+	okStyle      = lipgloss.NewStyle().Foreground(theme.Success)
 
-	keyStyle     = lipgloss.NewStyle().Foreground(accent).Bold(true)
-	summaryStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	headerStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Bold(true)
-	titleStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Bold(true)
+	keyStyle     = lipgloss.NewStyle().Foreground(theme.Primary).Bold(true)
+	summaryStyle = lipgloss.NewStyle().Foreground(theme.TextMuted)
+	headerStyle  = lipgloss.NewStyle().Foreground(theme.Text).Bold(true)
+	titleStyle   = lipgloss.NewStyle().Foreground(theme.Text).Bold(true)
+	agentStyle   = lipgloss.NewStyle().Foreground(theme.Secondary)
 
 	// Panel chrome for the dashboard's three columns.
-	paneTitleStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Bold(true)
-	paneBorderStyle  = lipgloss.NewStyle().Faint(true)
-	paneFocusedTitle = lipgloss.NewStyle().Foreground(accent).Bold(true)
+	paneTitleStyle   = lipgloss.NewStyle().Foreground(theme.TextMuted).Bold(true)
+	paneFocusedTitle = lipgloss.NewStyle().Foreground(theme.Primary).Bold(true)
 
 	stateStyles = map[session.State]lipgloss.Style{
-		session.Running: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42")),  // green
-		session.Waiting: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214")), // yellow
-		session.Stopped: lipgloss.NewStyle().Faint(true).Foreground(lipgloss.Color("244")),
+		session.Running: lipgloss.NewStyle().Bold(true).Foreground(theme.Success),
+		session.Waiting: lipgloss.NewStyle().Bold(true).Foreground(theme.Warning),
+		session.Stopped: lipgloss.NewStyle().Foreground(theme.TextDim),
 	}
 )
 
@@ -53,7 +59,7 @@ func center(width int, content string) string {
 }
 
 // divider spans the banner's width so headers line up with the identity block.
-func divider() string { return dividerStyle.Render(strings.Repeat("─", BannerWidth())) }
+func divider() string { return dividerStyle.Render(strings.Repeat("─", banner.Width())) }
 
 // actionKey styles a keybinding: the key in the accent colour, its description
 // faint. It is the single vocabulary for every footer and help line.
@@ -61,15 +67,31 @@ func actionKey(k, desc string) string {
 	return keyStyle.Render(k) + helpStyle.Render(" "+desc)
 }
 
-// glyph picks the status symbol and colour. A working session pulses green.
+// Status symbols — a consistent visual language paired with colour so state is
+// never carried by colour alone (readable for colour-blind users and in
+// no-colour terminals). A working session pulses in the brand coral.
+const (
+	glyphRunning = "●"
+	glyphWaiting = "○"
+	glyphStopped = "■"
+	glyphError   = "!"
+)
+
+// glyph picks the status symbol and colour for a task. Each state has its own
+// shape: ● running, ○ waiting, ■ stopped. A working session (producing output)
+// shows a filled coral dot so activity stands out from a plain attached one.
 func glyph(s session.State, working bool) (string, lipgloss.Style) {
-	if s == session.Stopped {
-		return "○", stateStyles[s]
+	if working && s != session.Stopped {
+		return glyphRunning, workingStyle
 	}
-	if working {
-		return "●", workingStyle
+	switch s {
+	case session.Running:
+		return glyphRunning, stateStyles[session.Running]
+	case session.Waiting:
+		return glyphWaiting, stateStyles[session.Waiting]
+	default:
+		return glyphStopped, stateStyles[session.Stopped]
 	}
-	return "●", stateStyles[s]
 }
 
 // stateLabel is the short, reliable status word for a task, derived only from

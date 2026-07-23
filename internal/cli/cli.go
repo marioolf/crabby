@@ -16,6 +16,7 @@ import (
 	"github.com/marioolf/crabby/internal/insights"
 	"github.com/marioolf/crabby/internal/tmux"
 	"github.com/marioolf/crabby/internal/tui"
+	"github.com/marioolf/crabby/internal/ui/banner"
 	"github.com/marioolf/crabby/internal/version"
 )
 
@@ -32,7 +33,7 @@ func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "crabby",
 		Short: "A workspace manager for Claude Code",
-		Long: tui.Banner() + "\n\n" +
+		Long: banner.Full() + "\n\n" +
 			"A workspace manager for Claude Code.\n" +
 			"Run it with no arguments to open the app: create workspaces and tasks,\n" +
 			"jump into Claude, and manage packs — all without leaving the terminal.\n\n" +

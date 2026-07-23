@@ -13,6 +13,8 @@ import (
 	"github.com/marioolf/crabby/internal/insights"
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/session"
+	"github.com/marioolf/crabby/internal/ui/banner"
+	"github.com/marioolf/crabby/internal/ui/theme"
 )
 
 // dirExists reports whether path is an existing directory, used to flag a
@@ -284,7 +286,7 @@ func (m model) handleConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) viewDashboard() string {
 	var b strings.Builder
-	b.WriteString(center(m.width, BannerFrame(m.anim)))
+	b.WriteString(center(m.width, banner.Full()))
 	b.WriteString("\n\n")
 
 	if len(m.rows) == 0 {
@@ -365,7 +367,7 @@ func (m model) paneHeight() int {
 	if h <= 0 {
 		h = 24
 	}
-	avail := h - lipgloss.Height(Banner()) - 8
+	avail := h - lipgloss.Height(banner.Full()) - 8
 	if avail < 6 {
 		avail = 6
 	}
@@ -382,7 +384,7 @@ func box(inner string, w, h int, focused bool) string {
 	if focused {
 		return s.BorderForeground(accent).Render(inner)
 	}
-	return s.BorderForeground(lipgloss.Color("240")).Render(inner)
+	return s.BorderForeground(theme.Border).Render(inner)
 }
 
 // paneTitle renders a column's heading, accented when the column is focused.
@@ -423,6 +425,11 @@ func (m model) workspaceColumn(w, h int) string {
 		selected := i == m.wsCursor
 		st, working := r.repr()
 		dot, dotStyle := glyph(st, working)
+		if r.missing {
+			// A workspace whose folder is gone needs attention: the error glyph
+			// makes it stand out from a merely stopped one.
+			dot, dotStyle = glyphError, errorStyle
+		}
 		name := r.proj.Name
 		nameR := nameStyle.Render(name)
 		if selected {
@@ -486,6 +493,7 @@ func (m model) detailColumn(w, h int) string {
 	}
 	add("status", stateLabel(tr.state, tr.working))
 	add("task", nameStyle.Render(tr.task.Name))
+	add("agent", agentStyle.Render(m.agentFor(tr.task).Name()))
 	if ws.missing {
 		add("folder", errorStyle.Render("⚠ missing — moved or renamed (e to relink)"))
 	}
@@ -512,39 +520,44 @@ func (m model) detailColumn(w, h int) string {
 	return box(strings.Join(lines, "\n"), w, h, false)
 }
 
-// summaryLine is the global usage bar: workspace and task counts plus tokens.
+// summaryLine is the global status bar: the workspace count, a Running / Waiting
+// / Stopped tally in the shared status vocabulary, and today's tokens. It gives
+// the dashboard its "Mission Control" glance without leaving the home screen.
 func (m model) summaryLine() string {
 	if len(m.rows) == 0 {
 		return ""
 	}
-	var active, stopped, working, tokens int
+	var running, waiting, stopped, tokens int
 	for _, r := range m.rows {
 		tokens += r.insight.TodayTokens
 		for _, t := range r.tasks {
-			if t.state == session.Stopped {
+			switch t.state {
+			case session.Running:
+				running++
+			case session.Waiting:
+				waiting++
+			default:
 				stopped++
-			} else {
-				active++
-			}
-			if t.working {
-				working++
 			}
 		}
 	}
-	parts := []string{plural(len(m.rows), "workspace")}
-	if active > 0 {
-		parts = append(parts, fmt.Sprintf("%d active", active))
-	}
-	if stopped > 0 {
-		parts = append(parts, fmt.Sprintf("%d stopped", stopped))
-	}
-	if working > 0 {
-		parts = append(parts, fmt.Sprintf("%d working", working))
+	parts := []string{
+		summaryStyle.Render(plural(len(m.rows), "workspace")),
+		stateCount(session.Running, "Running", running),
+		stateCount(session.Waiting, "Waiting", waiting),
+		stateCount(session.Stopped, "Stopped", stopped),
 	}
 	if tokens > 0 {
-		parts = append(parts, formatTokens(tokens)+" tokens today")
+		parts = append(parts, summaryStyle.Render(formatTokens(tokens)+" tokens today"))
 	}
-	return summaryStyle.Render(strings.Join(parts, "   ·   "))
+	return strings.Join(parts, summaryStyle.Render("   ·   "))
+}
+
+// stateCount renders one status tally with its glyph and colour, e.g. "● Running
+// 4" — colour and symbol together, so the tally is legible without colour.
+func stateCount(s session.State, label string, n int) string {
+	sym, sty := glyph(s, false)
+	return sty.Render(sym) + " " + summaryStyle.Render(fmt.Sprintf("%s %d", label, n))
 }
 
 // dashboardFooter shows the actions and the on-screen hint for returning from a

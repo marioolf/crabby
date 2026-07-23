@@ -9,6 +9,7 @@ import (
 	"github.com/marioolf/crabby/internal/config"
 	"github.com/marioolf/crabby/internal/doctor"
 	"github.com/marioolf/crabby/internal/pack"
+	"github.com/marioolf/crabby/internal/ui/banner"
 	"github.com/marioolf/crabby/internal/version"
 )
 
@@ -103,10 +104,10 @@ func (m model) aboutBody() string {
 	cfg := m.cfg
 	def := config.Default()
 	lines := []string{
-		fmt.Sprintf("%s v%s", version.App, version.String()),
-		metaStyle.Render(version.Tagline),
+		titleStyle.Render(fmt.Sprintf("%s v%s", version.App, version.String())),
+		metaStyle.Render(banner.Slogan),
 		"",
-		metaStyle.Render("by " + version.Author + " · " + version.Repo),
+		metaStyle.Render("by " + banner.Attribution + " · " + version.Repo),
 		"",
 		metaStyle.Render("claude command   ") + valueOrDefault(cfg.ClaudeCommand, def.ClaudeCommand),
 		metaStyle.Render("tmux binary      ") + valueOrDefault(cfg.TmuxBinary, def.TmuxBinary),

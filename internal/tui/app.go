@@ -9,6 +9,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -19,6 +20,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/marioolf/crabby/internal/agent"
+	"github.com/marioolf/crabby/internal/agent/claude"
 	"github.com/marioolf/crabby/internal/config"
 	"github.com/marioolf/crabby/internal/doctor"
 	"github.com/marioolf/crabby/internal/importcmd"
@@ -26,13 +29,10 @@ import (
 	"github.com/marioolf/crabby/internal/pack"
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/tmux"
+	"github.com/marioolf/crabby/internal/ui/banner"
 )
 
 const refreshEach = time.Second
-
-// animEach is how often the banner redraws. It only rebuilds the view (no disk
-// or tmux reads), so it can be brisk without being costly.
-const animEach = 500 * time.Millisecond
 
 // screen is which view the app is currently showing.
 type screen int
@@ -65,6 +65,10 @@ type model struct {
 	cfg      config.Config
 	tmux     tmux.Client
 	insights *insights.Collector
+	// agents is the set of agent adapters Crabby knows about, built once at
+	// startup. A task's stored agent ID is resolved through it (falling back to
+	// the default), so the interface never assumes the agent is Claude.
+	agents *agent.Registry
 
 	width, height int
 	screen        screen
@@ -125,9 +129,6 @@ type model struct {
 	settingsPane   settingsPane
 	checks         []doctor.Check
 
-	// anim is the banner animation counter, advanced by its own light tick.
-	anim int
-
 	// notice is a transient message shown in the status bar (errors, results).
 	notice    string
 	noticeErr bool
@@ -144,6 +145,7 @@ func Run(cfg config.Config, t tmux.Client, coll *insights.Collector) error {
 		cfg:          cfg,
 		tmux:         t,
 		insights:     coll,
+		agents:       defaultRegistry(cfg),
 		lastActivity: map[string]time.Time{},
 		working:      map[string]bool{},
 		firstLoad:    true,
@@ -153,13 +155,25 @@ func Run(cfg config.Config, t tmux.Client, coll *insights.Collector) error {
 	return err
 }
 
+// defaultRegistry builds the agent registry for a session. Claude Code is the
+// only agent for now; adding Codex, Gemini or others later means registering
+// their adapters here, with no change to the rest of Crabby.
+func defaultRegistry(cfg config.Config) *agent.Registry {
+	return agent.NewRegistry(claude.New(cfg.ClaudeCommand))
+}
+
+// agentFor resolves a task's agent through the registry, tolerating a model
+// built without one (some tests) by falling back to a Claude adapter.
+func (m model) agentFor(t project.Task) agent.Agent {
+	if m.agents != nil {
+		return m.agents.Lookup(t.Agent)
+	}
+	return claude.New(m.cfg.ClaudeCommand)
+}
+
 // --- Messages --------------------------------------------------------------
 
 type tickMsg time.Time
-
-// animMsg drives the banner animation, separately from the data refresh so the
-// crab can move without re-reading the filesystem or tmux.
-type animMsg time.Time
 
 // openTaskMsg asks the app to attach to a task, creating its session first if
 // needed. Every "open a Claude session" path funnels through here.
@@ -182,17 +196,13 @@ func tick() tea.Cmd {
 	return tea.Tick(refreshEach, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
-func animTick() tea.Cmd {
-	return tea.Tick(animEach, func(t time.Time) tea.Msg { return animMsg(t) })
-}
-
 // bellCmd rings the terminal bell out-of-band (BEL does not disturb the screen).
 func bellCmd() tea.Msg {
 	fmt.Fprint(os.Stderr, "\a")
 	return nil
 }
 
-func (m model) Init() tea.Cmd { return tea.Batch(tick(), animTick()) }
+func (m model) Init() tea.Cmd { return tick() }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -209,10 +219,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(tick(), bellCmd)
 		}
 		return m, tick()
-
-	case animMsg:
-		m.anim++
-		return m, animTick()
 
 	case noticeMsg:
 		m.notice, m.noticeErr = msg.text, msg.isErr
@@ -340,24 +346,30 @@ func (m model) attach(p project.Project, task project.Task) (tea.Model, tea.Cmd)
 	} else {
 		m.afterAttach = scrDashboard
 	}
-	if !m.tmux.HasSession(task.Session) {
-		if _, err := exec.LookPath(m.cfg.ClaudeCommand); err != nil {
-			m.notice = fmt.Sprintf("Claude Code not found on PATH (looked for %q)", m.cfg.ClaudeCommand)
-			m.noticeErr = true
-			return m, nil
-		}
-		if err := m.tmux.NewSession(task.Session, p.Path, m.cfg.ClaudeCommand); err != nil {
+	// Resolve the task's agent and drive its session through the agent runtime,
+	// so opening a task is the same code path whatever agent runs inside it.
+	ag := m.agentFor(task)
+	sess := agent.Session{
+		Agent: ag,
+		Tmux:  m.tmux,
+		Name:  task.Session,
+		Dir:   p.Path,
+		Label: windowLabel(p, task),
+	}
+	if err := sess.Start(); err != nil {
+		if errors.Is(err, agent.ErrUnavailable) {
+			m.notice = fmt.Sprintf("%s not found on PATH (looked for %q)", ag.Name(), ag.Command())
+		} else {
 			m.notice = fmt.Sprintf("could not start task %q: %v", task.Name, err)
-			m.noticeErr = true
-			return m, nil
 		}
-		_ = m.tmux.RenameWindow(task.Session, windowLabel(p, task))
+		m.noticeErr = true
+		return m, nil
 	}
 	// Best-effort branding + the prefix-free return key; a failure here only
 	// means a plain status bar, so never block the attach on it.
 	_ = m.tmux.Configure(m.cfg.DetachKey)
 	m.notice, m.noticeErr = "", false
-	ex := &attachExec{cmd: m.tmux.AttachCmd(task.Session)}
+	ex := &attachExec{cmd: sess.AttachCmd()}
 	return m, tea.Exec(ex, func(err error) tea.Msg { return execDoneMsg{err} })
 }
 
@@ -431,7 +443,7 @@ func (m *model) goDashboard() {
 // reads as the same application. The status notice, if any, sits at the bottom.
 func (m model) frame(title, body, footer string) string {
 	var b strings.Builder
-	b.WriteString(center(m.width, BannerFrame(m.anim)))
+	b.WriteString(center(m.width, banner.Logo()))
 	b.WriteString("\n\n")
 	b.WriteString(center(m.width, divider()))
 	b.WriteString("\n\n")

@@ -19,6 +19,7 @@ func dashModel(rows []wsRow) model {
 		cfg:          config.Default(),
 		tmux:         tmux.New("tmux"),
 		insights:     insights.New(),
+		agents:       defaultRegistry(config.Default()),
 		width:        200,
 		height:       50,
 		rows:         rows,
@@ -54,13 +55,15 @@ func TestDashboardRendersInsightsAndSummary(t *testing.T) {
 	for _, want := range []string{
 		"payments",
 		"docs",
+		"Claude Code",   // resolved agent, in the detail column
 		"Opus 4.8",      // model, in the detail column
 		"132k",          // token figure
 		"Editing files", // activity from the transcript tail
 		"20s ago",       // last activity
 		"2h14m",         // uptime
 		"2 workspaces",  // global summary
-		"1 working",
+		"Waiting 1",     // status tally in the shared vocabulary
+		"Stopped 1",
 		"132k tokens today",
 	} {
 		if !strings.Contains(out, want) {
