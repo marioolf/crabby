@@ -116,6 +116,33 @@ func TestLegacyEntryMigratesToDefaultTask(t *testing.T) {
 	if len(p.Tasks) != 1 || p.Tasks[0].Session != "crabby_old" {
 		t.Fatalf("legacy entry did not migrate: %+v", p.Tasks)
 	}
+	// A pre-agents task carries no agent; it must resolve to the default so old
+	// installations keep working with no manual migration.
+	if p.Tasks[0].Agent != "claude" {
+		t.Fatalf("legacy task agent = %q, want claude", p.Tasks[0].Agent)
+	}
+}
+
+// TestTaskWithoutAgentBackfills covers a task-based registry (already migrated
+// to tasks) written before the agent field existed: each task should load with
+// the default agent filled in.
+func TestTaskWithoutAgentBackfills(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := Save([]Project{{
+		Name: "ws", Path: "/ws",
+		Tasks: []Task{{Name: "main", Session: "crabby_ws"}, {Name: "tests", Session: "crabby_ws_tests"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Find("ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tk := range p.Tasks {
+		if tk.Agent != "claude" {
+			t.Errorf("task %q agent = %q, want claude", tk.Name, tk.Agent)
+		}
+	}
 }
 
 func TestRemove(t *testing.T) {

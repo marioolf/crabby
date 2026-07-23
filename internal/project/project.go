@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/marioolf/crabby/internal/agent"
 )
 
 // ErrNotFound is returned when a project cannot be located in the registry.
@@ -25,11 +27,15 @@ var ErrTaskExists = errors.New("a task with that name already exists")
 // existed. Its session keeps the legacy "crabby_<workspace>" name.
 const DefaultTask = "main"
 
-// Task is one Claude Code session inside a workspace. A workspace may hold
-// several, each an independent session sharing the same project directory.
+// Task is one agent session inside a workspace. A workspace may hold several,
+// each an independent session sharing the same project directory. Agent names
+// which tool runs the task (e.g. "claude"); it is the stable internal ID, never
+// the display name, and defaults to Claude Code when absent so registries
+// written before agents existed keep working.
 type Task struct {
 	Name    string    `json:"name"`
 	Session string    `json:"session"`
+	Agent   string    `json:"agent,omitempty"`
 	Created time.Time `json:"created,omitempty"`
 }
 
@@ -46,14 +52,20 @@ type Project struct {
 // mapping it onto the legacy session name so existing sessions are still
 // recognised. This runs on load, so callers always see at least one task.
 func (p Project) withTasks() Project {
-	if len(p.Tasks) > 0 {
-		return p
+	if len(p.Tasks) == 0 {
+		legacy := p.Session
+		if legacy == "" {
+			legacy = "crabby_" + p.Name
+		}
+		p.Tasks = []Task{{Name: DefaultTask, Session: legacy}}
 	}
-	legacy := p.Session
-	if legacy == "" {
-		legacy = "crabby_" + p.Name
+	// Backfill the agent for tasks written before the field existed, so every
+	// task resolves to a runnable agent with no manual migration.
+	for i := range p.Tasks {
+		if p.Tasks[i].Agent == "" {
+			p.Tasks[i].Agent = agent.DefaultID
+		}
 	}
-	p.Tasks = []Task{{Name: DefaultTask, Session: legacy}}
 	return p
 }
 
@@ -306,7 +318,7 @@ func FindByPath(path string) (Project, error) {
 	}
 	for _, p := range projects {
 		if p.Path == abs {
-			return p, nil
+			return p.withTasks(), nil
 		}
 	}
 	return Project{}, ErrNotFound

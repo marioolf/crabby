@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/marioolf/crabby/internal/agent"
 	"github.com/marioolf/crabby/internal/pack"
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/session"
@@ -60,7 +61,7 @@ func Init(dir string, p *pack.Pack) (Result, error) {
 		Name: name,
 		Path: abs,
 		Tasks: []project.Task{
-			{Name: project.DefaultTask, Session: session.Name(name)},
+			{Name: project.DefaultTask, Session: session.Name(name), Agent: agent.DefaultID},
 		},
 	}
 	res := Result{Project: proj}
@@ -90,7 +91,7 @@ func Init(dir string, p *pack.Pack) (Result, error) {
 
 	// Crabby owns .claude/crabby.yaml (project metadata for the registry), so it
 	// is always written with the correct values regardless of the pack.
-	meta := fmt.Sprintf("name: %s\npath: %s\nsession: %s\n", proj.Name, proj.Path, proj.Tasks[0].Session)
+	meta := fmt.Sprintf("name: %s\npath: %s\nsession: %s\nagent: %s\n", proj.Name, proj.Path, proj.Tasks[0].Session, proj.Tasks[0].Agent)
 	if err := os.WriteFile(filepath.Join(claudeDir, "crabby.yaml"), []byte(meta), 0o644); err != nil {
 		return res, err
 	}

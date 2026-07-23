@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/marioolf/crabby/internal/agent"
 	"github.com/marioolf/crabby/internal/initcmd"
 	"github.com/marioolf/crabby/internal/pack"
 	"github.com/marioolf/crabby/internal/project"
@@ -311,6 +312,7 @@ func createTask(p project.Project, name string) (project.Task, error) {
 	tk := project.Task{
 		Name:    name,
 		Session: session.TaskSession(p.Name, name),
+		Agent:   agent.DefaultID,
 		Created: time.Now(),
 	}
 	if err := project.AddTask(p.Name, tk); err != nil {
