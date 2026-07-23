@@ -1,16 +1,14 @@
 # Crabby
 
 ```
- (\/)    (\/)
-   \(o..o)/
-   /`----'\
-
-     C R A B B Y
+████ ███   ██  ███  ███  █  █
+█    █  █ █  █ █  █ █  █ █  █
+█    ███  ████ ███  ███   ██
+█    █ █  █  █ █  █ █  █  █
+████ █  █ █  █ ███  ███   █
 ```
 
-**Many Claudes. One shell.**
-
-_prepare projects · orchestrate claude · one terminal_
+**Prepare projects. Organize sessions. Just one terminal.**
 
 A workspace manager for Claude Code — _by [marioolf](https://github.com/marioolf) · [github.com/marioolf/crabby](https://github.com/marioolf/crabby)_
 

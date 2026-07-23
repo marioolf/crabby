@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-23
+
+### Changed
+
+- **A visual identity of its own.** Crabby now ships a design system
+  (`internal/ui/theme`): one dark, warm, arcade palette with a coral red as the
+  brand colour, and every screen draws its colours from those central tokens —
+  no more scattered hex literals. Brand and status are kept as separate ideas, so
+  "error" is never just "the brand red".
+- **New logo.** The crab ASCII art is gone, replaced by a compact pixel-art
+  `CRABBY` wordmark drawn in Go (no FIGlet or external fonts), lit from above for
+  an arcade-cabinet feel. It lives in one place (`internal/ui/banner`) and is
+  reused everywhere.
+- **A consistent status language** across the whole app: `●` running, `○`
+  waiting, `■` stopped, `!` error — colour paired with a symbol, so state never
+  rests on colour alone. The dashboard leads with the full identity and a
+  Running / Waiting / Stopped tally; Mission Control and every dialog, selector
+  and form share the same look.
+- Official slogan: **Prepare projects. Organize sessions. Just one terminal.**
+
+### Added
+
+- **Agent architecture.** Crabby no longer assumes the agent is Claude. An
+  `Agent` (`internal/agent`) is the tool that does a task's work — abstracting
+  only what varies between tools (ID, name, command, availability) — and the
+  shared session runtime starts, attaches and stops it the same way whatever it
+  is. Tasks now record which agent they use (`agent: claude`), a registry
+  resolves that ID, and Mission Control speaks of *agent sessions*. Claude Code
+  is the first and only adapter (`internal/agent/claude`). See
+  [`docs/AGENTS.md`](docs/AGENTS.md) for how to add another agent later.
+
+### Compatibility
+
+- Existing workspaces and tasks keep working with no migration: a task written
+  before agents existed carries no agent field and resolves to Claude Code.
+
 ## [0.9.0] - 2026-07-15
 
 ### Added
