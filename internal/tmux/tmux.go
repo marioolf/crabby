@@ -192,7 +192,7 @@ func (c Client) Configure(detachKey string) error {
 		{"set-option", "-g", "allow-rename", "off"},
 		{"set-option", "-g", "automatic-rename", "off"},
 		// Let the wheel scroll the pane's history instead of being forwarded to
-		// Claude Code as arrow keys — otherwise scrolling up cycles through old
+		// the agent as arrow keys — otherwise scrolling up cycles through old
 		// prompts rather than the response you're trying to read.
 		{"set-option", "-g", "mouse", "on"},
 		{"set-option", "-g", "status", "on"},
@@ -200,9 +200,11 @@ func (c Client) Configure(detachKey string) error {
 		{"set-option", "-g", "status-style", "bg=colour235,fg=colour250"},
 		{"set-option", "-g", "status-left-length", "40"},
 		{"set-option", "-g", "status-right-length", "50"},
-		{"set-option", "-g", "status-left", "#[fg=colour209,bold] 🦀 crabby #[default]"},
+		// The brand coral (design-system Primary), approximated in tmux's
+		// 256-colour palette. No crab: the identity is the coral wordmark.
+		{"set-option", "-g", "status-left", "#[fg=colour203,bold] CRABBY #[default]"},
 		{"set-option", "-g", "status-right",
-			fmt.Sprintf("#[fg=colour209,bold] %s #[fg=colour250,nobold]return to crabby ", detachKey)},
+			fmt.Sprintf("#[fg=colour203,bold] %s #[fg=colour250,nobold]return to crabby ", detachKey)},
 		{"set-option", "-g", "window-status-current-format", "#[fg=colour252,bold]#W"},
 		{"set-option", "-g", "window-status-format", "#[fg=colour244]#W"},
 	}

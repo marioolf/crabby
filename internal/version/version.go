@@ -21,7 +21,7 @@ const (
 	App     = "Crabby"
 	Author  = "marioolf"
 	Repo    = "github.com/marioolf/crabby"
-	Tagline = "Many Claudes. One shell."
+	Tagline = "Prepare projects. Organize sessions. Just one terminal."
 )
 
 // Version is populated at build time via -ldflags. Leave it empty here.
