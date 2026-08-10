@@ -58,8 +58,24 @@ func (c Client) Available() bool {
 	return err == nil
 }
 
+// isValidSessionName ensures the session name contains only safe characters.
+func isValidSessionName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' || r == ':') {
+			return false
+		}
+	}
+	return true
+}
+
 // HasSession reports whether a session with the given name exists.
 func (c Client) HasSession(name string) bool {
+	if !isValidSessionName(name) {
+		return false
+	}
 	return exec.Command(c.Binary, c.args("has-session", "-t", exact(name))...).Run() == nil
 }
 
@@ -69,6 +85,9 @@ func (c Client) HasSession(name string) bool {
 // "=" exact-match form, so callers must pass a full session name. The dashboard
 // reads attachment from ListSessions instead, which keys on exact names.
 func (c Client) Attached(name string) bool {
+	if !isValidSessionName(name) {
+		return false
+	}
 	out, err := c.output("display-message", "-p", "-t", name, "#{session_attached}")
 	if err != nil {
 		return false
@@ -115,6 +134,9 @@ func (c Client) ListSessions() map[string]Session {
 
 // Activity returns the time of the session's last activity.
 func (c Client) Activity(name string) (time.Time, bool) {
+	if !isValidSessionName(name) {
+		return time.Time{}, false
+	}
 	out, err := c.output("display-message", "-p", "-t", name, "#{session_activity}")
 	if err != nil {
 		return time.Time{}, false
@@ -129,6 +151,9 @@ func (c Client) Activity(name string) (time.Time, bool) {
 // NewSession creates a detached session named name, starting in dir and running
 // the given command (empty opens a shell).
 func (c Client) NewSession(name, dir, command string) error {
+	if !isValidSessionName(name) {
+		return fmt.Errorf("invalid session name: %q", name)
+	}
 	a := []string{"new-session", "-d", "-s", name, "-c", dir}
 	if command != "" {
 		a = append(a, command)
@@ -139,22 +164,31 @@ func (c Client) NewSession(name, dir, command string) error {
 // KillSession ends a session (and the program running in it). Used by the home
 // screen's stop key so the user never has to touch tmux directly.
 func (c Client) KillSession(name string) error {
+	if !isValidSessionName(name) {
+		return fmt.Errorf("invalid session name: %q", name)
+	}
 	return c.run("kill-session", "-t", exact(name))
 }
 
 // RenameWindow sets the session's window name, which Crabby uses to show the
 // project name in the status bar instead of the running command.
 func (c Client) RenameWindow(session, name string) error {
+	if !isValidSessionName(session) {
+		return fmt.Errorf("invalid session name: %q", session)
+	}
 	return c.run("rename-window", "-t", exact(session), name)
 }
 
 // AttachCmd builds the command that attaches to a session, wired to the real
 // terminal. It does not run: the TUI wraps it for tea.Exec so Bubble Tea can
 // release the screen, run the attach, and restore itself afterwards — a seamless
-// step in and out of a Claude session without ever leaving Crabby. The session
+// step in and out of a AI Agent session without ever leaving Crabby. The session
 // name is passed as a single argv element, so names with unusual characters are
 // never word-split or interpreted by a shell.
 func (c Client) AttachCmd(name string) *exec.Cmd {
+	if !isValidSessionName(name) {
+		return nil // Should not happen in normal flow, but defends against injection
+	}
 	cmd := exec.Command(c.Binary, c.args("attach-session", "-t", exact(name))...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -169,6 +203,9 @@ func (c Client) AttachCmd(name string) *exec.Cmd {
 // any prefix, so this cannot land on the wrong session. A missing session or any
 // error yields "".
 func (c Client) CapturePane(name string) string {
+	if !isValidSessionName(name) {
+		return ""
+	}
 	out, err := c.output("capture-pane", "-t", name, "-p")
 	if err != nil {
 		return ""
@@ -192,7 +229,7 @@ func (c Client) Configure(detachKey string) error {
 		{"set-option", "-g", "allow-rename", "off"},
 		{"set-option", "-g", "automatic-rename", "off"},
 		// Let the wheel scroll the pane's history instead of being forwarded to
-		// Claude Code as arrow keys — otherwise scrolling up cycles through old
+		// AI Agent as arrow keys — otherwise scrolling up cycles through old
 		// prompts rather than the response you're trying to read.
 		{"set-option", "-g", "mouse", "on"},
 		{"set-option", "-g", "status", "on"},

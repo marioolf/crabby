@@ -150,6 +150,9 @@ func copyTree(src, dest string) error {
 		if d.IsDir() {
 			return os.MkdirAll(target, 0o755)
 		}
+		if d.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("pack contains symlink %q — not allowed", rel)
+		}
 		return copyFile(path, target)
 	})
 }

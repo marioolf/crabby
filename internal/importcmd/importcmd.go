@@ -1,4 +1,4 @@
-// Package importcmd discovers existing Claude Code projects so they can be
+// Package importcmd discovers existing AI Agent projects so they can be
 // adopted into Crabby without re-initializing them.
 //
 // A folder qualifies simply by containing a CLAUDE.md (or claude.md) — a git
@@ -23,7 +23,7 @@ import (
 	"github.com/marioolf/crabby/internal/project"
 )
 
-// Workspace is a discovered Claude Code project, ready to be imported.
+// Workspace is a discovered AI Agent project, ready to be imported.
 type Workspace struct {
 	Name     string // directory base name
 	Path     string // absolute path
@@ -51,9 +51,9 @@ var ignoredDirs = map[string]bool{
 	".gradle":      true,
 }
 
-// contextFiles are the names that mark a Claude workspace, matched
+// contextFiles are the names that mark a Agent workspace, matched
 // case-sensitively against a small set rather than statting the whole directory.
-var contextFiles = []string{"CLAUDE.md", "claude.md", "Claude.md"}
+var contextFiles = []string{"CLAUDE.md", "claude.md", "Agent.md"}
 
 // Discover walks root and returns every folder containing a context file found
 // beneath it, sorted by name. Already-registered projects are flagged rather
@@ -160,6 +160,19 @@ func skipWinUser(name string) bool {
 	return false
 }
 
+// validateWorkspaceName ensures the workspace name contains only safe characters.
+func validateWorkspaceName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
+}
+
 // walkRoot walks one root, returning the workspaces beneath it. maxDepth < 0
 // means no limit; otherwise directories deeper than maxDepth below root are not
 // descended into.
@@ -175,7 +188,7 @@ func walkRoot(root string, maxDepth int, registered map[string]bool) []Workspace
 		// Prune dependency folders and hidden directories (never the root the
 		// caller named). Skipping dot-directories keeps config and cache trees —
 		// ~/.claude, ~/.config, ~/.cache and the like — out of the results, which
-		// otherwise surface Crabby's own packs and the global Claude config.
+		// otherwise surface Crabby's own packs and the global Agent config.
 		if path != root && (ignoredDirs[d.Name()] || strings.HasPrefix(d.Name(), ".")) {
 			return fs.SkipDir
 		}
@@ -188,10 +201,21 @@ func walkRoot(root string, maxDepth int, registered map[string]bool) []Workspace
 		// A context file marks a project. Record it (with its git branch if it
 		// happens to be a repo) and stop descending, so nested context files
 		// deeper in the project aren't imported as separate workspaces.
+		name := filepath.Base(path)
+		if !validateWorkspaceName(name) {
+			return fs.SkipDir
+		}
+
+		var branch string
+		func() {
+			defer func() { recover() }()
+			branch = project.Project{Path: path}.Branch()
+		}()
+
 		found = append(found, Workspace{
-			Name:     filepath.Base(path),
+			Name:     name,
 			Path:     path,
-			Branch:   project.Project{Path: path}.Branch(),
+			Branch:   branch,
 			Imported: registered[path],
 		})
 		return fs.SkipDir

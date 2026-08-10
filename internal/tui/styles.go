@@ -52,6 +52,22 @@ func center(width int, content string) string {
 	return lipgloss.PlaceHorizontal(width, lipgloss.Center, content)
 }
 
+// sanitizeRender strips ANSI/OSC escapes and control characters to prevent
+// terminal injection when rendering untrusted names.
+func sanitizeRender(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r == 0x1b || r == 0x7f {
+			continue
+		}
+		if (r >= 0x00 && r <= 0x1f && r != '\n' && r != '\t') || (r >= 0x80 && r <= 0x9f) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
 // divider spans the banner's width so headers line up with the identity block.
 func divider() string { return dividerStyle.Render(strings.Repeat("─", BannerWidth())) }
 
@@ -101,7 +117,7 @@ func workingActivity(ins insights.Insight) string {
 		if ins.Detail == "" || ins.Detail == "Bash" {
 			return "Running command"
 		}
-		return "Running " + ins.Detail
+		return "Running " + sanitizeRender(ins.Detail)
 	case insights.Responding:
 		return "Responding"
 	default:

@@ -7,14 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Multi-agent workspace disambiguation.** Opening a second workspace at a path
+  that is already registered no longer overwrites the existing entry when a
+  different agent is selected. Crabby generates a unique workspace name from the
+  path and the agent binary (e.g. `payments-opencode`), so `claude` and
+  `opencode` workspaces can coexist at the same directory and are independently
+  listed on the dashboard.
+- **Per-task agent selection.** Pressing **t** to create a new task now includes
+  an agent-selection step in the creation wizard. The chosen agent is persisted
+  in `projects.json` (`agent_command` field) and used every time that task is
+  opened, independently of the workspace's default agent.
+
 ## [0.9.0] - 2026-07-15
 
 ### Added
 
-- **Mission Control** (F12): a live overview of every Claude task at once — a
+- **Mission Control** (F12): a live overview of every AI Agent task at once — a
   grid of cards, one per task, each showing its status, branch, uptime, model and
   tokens, and a short live preview of the session's screen. Previews come from
-  `tmux capture-pane`, stripped of box art and Claude's status chrome so the card
+  `tmux capture-pane`, stripped of box art and the Agent's status chrome so the card
   shows recent output and the current prompt. Captures are cached and only
   refreshed when a session produces new output, so it scales to dozens of tasks.
   Arrow/Tab keys move between cards; Enter attaches and leaving returns to Mission
@@ -47,9 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   persistent, multi-panel home screen and every day-to-day action happens inside
   it — the shell is no longer part of the workflow. The dashboard is three
   columns (**Workspaces | Tasks | Details**) with keyboard focus moving between
-  panes (Tab / arrows); Enter opens the selected task in Claude.
-- Attaching to a Claude session now runs through the app (via `tea.ExecProcess`),
-  so the screen is released for Claude and the dashboard restored on return —
+  panes (Tab / arrows); Enter opens the selected task in Agent.
+- Attaching to a AI Agent session now runs through the app (via `tea.ExecProcess`),
+  so the screen is released for Agent and the dashboard restored on return —
   without ever leaving Crabby. The prefix-free return key (F12) is shown on
   screen and in Help.
 
@@ -82,8 +95,8 @@ storage, and pack format are unchanged.
 
 ### Fixed
 
-- **Mouse wheel scrolled Claude's prompt history instead of the pane.** With
-  tmux's mouse mode off (the default), the wheel was forwarded to Claude Code as
+- **Mouse wheel scrolled the Agent's prompt history instead of the pane.** With
+  tmux's mouse mode off (the default), the wheel was forwarded to AI Agent as
   arrow keys, cycling through old prompts rather than scrolling up through the
   response. Crabby now enables mouse mode on its tmux socket so the wheel scrolls
   the pane's scrollback. (Hold Shift while dragging for the terminal's native
@@ -114,7 +127,7 @@ storage, and pack format are unchanged.
 ### Added
 
 - **Multiple tasks per workspace.** A workspace can now hold several independent
-  Claude sessions ("tasks") that share the same project directory — work on a
+  AI Agent sessions ("tasks") that share the same project directory — work on a
   refactor, tests, and docs in parallel without cloning the repo. New commands:
   - `crabby task create <name>` — start a new task and open it.
   - `crabby task list [workspace]` — list a workspace's tasks and their state.
@@ -142,7 +155,7 @@ storage, and pack format are unchanged.
   required.
 - With several tasks sharing one directory, transcript-derived detail (model,
   tokens, fine activity) is shown at the workspace level; per-task rows show the
-  reliable tmux state, since Claude's transcripts can't be attributed to a
+  reliable tmux state, since the Agent's transcripts can't be attributed to a
   specific tmux session.
 
 ## [0.6.0] - 2026-07-13
@@ -152,7 +165,7 @@ storage, and pack format are unchanged.
 - **Workspace insights on the dashboard.** Each workspace now shows what Claude
   is doing (Thinking / Editing files / Reading files / Running command /
   Responding / Waiting for input / Idle), the model in use, tokens spent this
-  session, uptime, and how long ago Claude last acted — all read from Claude
+  session, uptime, and how long ago Agent last acted — all read from Claude
   Code's own session transcripts under `~/.claude/projects/`, not from terminal
   scraping.
 - **Global usage summary** below the list: workspace counts by state, how many
@@ -196,7 +209,7 @@ storage, and pack format are unchanged.
 
 ### Added
 
-- **`crabby import`.** Adopt existing Claude Code repositories in bulk. It scans
+- **`crabby import`.** Adopt existing AI Agent repositories in bulk. It scans
   a directory tree for git repositories that already contain a `CLAUDE.md` and
   presents them in an interactive selector (space to choose, Enter to import) —
   so a folder full of repos becomes Crabby workspaces in seconds. Already-imported
@@ -301,7 +314,7 @@ No functional changes.
 - **Crab-army header** on the home screen (Lip Gloss), giving Crabby a playful,
   recognizable identity.
 - **Stop a session from the home screen** with `x` (confirmed with `y/n`) — no
-  need to attach or exit Claude.
+  need to attach or exit Agent.
 - **New project** from the home screen with `n`, which initializes the current
   directory (with pack selection).
 
@@ -322,14 +335,14 @@ No functional changes.
 
 - `crabby` with no arguments now opens the home screen (the TUI). `crabby ps`
   remains as an alias.
-- The home screen is a loop: pick a project → work in Claude → leave → you land
+- The home screen is a loop: pick a project → work in Agent → leave → you land
   back on the list automatically, ready to pick another. No shell commands, no
   session names to remember.
 - Selecting a project starts its session if it isn't running yet, so opening a
   project is always a single keypress.
 - The TUI shows more, minimally: project name, session state (with clearer
   colors), path, git branch, and time since last activity.
-- README reframed around "a workspace manager for Claude Code"; tmux is
+- README reframed around "a workspace manager for AI Agent"; tmux is
   described only as an implementation detail.
 
 ### Added
@@ -368,11 +381,11 @@ No functional changes.
 
 ### Added
 
-- `crabby init` — prepare a project for Claude Code (`.claude/crabby.yaml`, `CLAUDE.md`, registry entry).
-- `crabby start` — create the tmux session, launch Claude, and attach (or attach if it already exists).
+- `crabby init` — prepare a project for AI Agent (`.claude/crabby.yaml`, `CLAUDE.md`, registry entry).
+- `crabby start` — create the tmux session, launch Agent, and attach (or attach if it already exists).
 - `crabby ps` — Bubble Tea TUI listing every project and its session state, with Enter-to-attach.
-- `crabby attach` — attach directly to a project's Claude session.
-- `crabby doctor` — verify WSL, Ubuntu, tmux, Claude, and crabby are present.
+- `crabby attach` — attach directly to a project's AI Agent session.
+- `crabby doctor` — verify WSL, Ubuntu, tmux, Agent, and crabby are present.
 - `crabby version` — print the Crabby version.
 - Windows wrapper (`crabby.exe`) that forwards commands into WSL.
 - One-command installers for Windows (`install.ps1`) and Linux/WSL (`install.sh`).

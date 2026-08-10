@@ -173,13 +173,13 @@ func (m model) viewPacks() string {
 		b.WriteString(metaStyle.Render("No packs yet.") + "\n\n")
 	}
 	for i, p := range m.packs {
-		b.WriteString(m.selectLine(i == m.packsCursor && m.packAction == packActionNone, p.Name))
+		b.WriteString(m.selectLine(i == m.packsCursor && m.packAction == packActionNone, sanitizeRender(p.Name)))
 		if p.Version != "" {
 			b.WriteString(metaStyle.Render("  v" + p.Version))
 		}
 		b.WriteString("\n")
 		if p.Description != "" {
-			b.WriteString("    " + metaStyle.Render(p.Description) + "\n")
+			b.WriteString("    " + metaStyle.Render(sanitizeRender(p.Description)) + "\n")
 		}
 	}
 	b.WriteString("\n" + metaStyle.Render("packs live in "+pack.DisplayDir()))

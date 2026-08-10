@@ -1,10 +1,10 @@
 // Package tui implements Crabby's terminal application.
 //
 // From v0.8 Crabby is TUI-first: `crabby` opens a persistent, multi-panel home
-// screen and everything — creating workspaces and tasks, attaching to Claude,
+// screen and everything — creating workspaces and tasks, attaching to an AI Agent,
 // managing packs, diagnostics — happens inside it. The shell is no longer part
 // of the normal workflow. A single Bubble Tea program owns the whole session;
-// attaching to a Claude session is done through tea.ExecProcess so the screen is
+// attaching to a AI Agent session is done through tea.ExecProcess so the screen is
 // released and restored around it, without ever leaving Crabby.
 package tui
 
@@ -27,6 +27,13 @@ import (
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/tmux"
 )
+
+// AgentItem represents a dynamically detected AI agent
+type AgentItem struct {
+	Name            string
+	Command         string
+	AutoApproveFlag string
+}
 
 const refreshEach = time.Second
 
@@ -68,7 +75,7 @@ type model struct {
 
 	width, height int
 	screen        screen
-	// afterAttach is the screen to restore when a Claude session ends — so
+	// afterAttach is the screen to restore when a AI Agent session ends — so
 	// leaving a session opened from Mission Control returns there, not to the
 	// dashboard.
 	afterAttach screen
@@ -93,11 +100,15 @@ type model struct {
 	mc missionState
 
 	// --- New-workspace flow ------------------------------------------------
-	wsStep     wsStep
-	wsDir      string
-	wsMatches  []string // sub-directories matching the typed path, for completion
-	packList   []pack.Pack
-	packCursor int
+	wsStep           wsStep
+	wsDir            string
+	wsMatches        []string // sub-directories matching the typed path, for completion
+	packList         []pack.Pack
+	packCursor       int
+	agentList        []AgentItem
+	agentCursor      int
+	agentAutoApprove bool
+	wsPack           *pack.Pack
 
 	// --- Import flow -------------------------------------------------------
 	importStep   importStep
@@ -109,7 +120,9 @@ type model struct {
 	relinkProj project.Project
 
 	// --- New-task flow -----------------------------------------------------
-	formProj project.Project
+	formProj    project.Project
+	newTaskStep newTaskStep
+	newTaskName string
 
 	// --- Packs screen ------------------------------------------------------
 	packs       []pack.Pack
@@ -135,7 +148,7 @@ type model struct {
 
 // Run starts the persistent application and blocks until the user quits. The
 // collector is reused across the whole session so its incremental transcript
-// cache survives returning from a Claude session.
+// cache survives returning from a AI Agent session.
 func Run(cfg config.Config, t tmux.Client, coll *insights.Collector) error {
 	if coll == nil {
 		coll = insights.New()
@@ -162,13 +175,13 @@ type tickMsg time.Time
 type animMsg time.Time
 
 // openTaskMsg asks the app to attach to a task, creating its session first if
-// needed. Every "open a Claude session" path funnels through here.
+// needed. Every "open a AI Agent session" path funnels through here.
 type openTaskMsg struct {
 	proj project.Project
 	task project.Task
 }
 
-// execDoneMsg is delivered after an external program (a Claude attach, or an
+// execDoneMsg is delivered after an external program (a Agent attach, or an
 // editor) finishes and the screen has been restored.
 type execDoneMsg struct{ err error }
 
@@ -329,9 +342,9 @@ func (m model) View() string {
 	}
 }
 
-// attach opens a task's Claude session. Quick tmux calls (create, configure,
+// attach opens a task's AI Agent session. Quick tmux calls (create, configure,
 // rename) run inline; the blocking attach is handed to tea.ExecProcess so Bubble
-// Tea releases the screen for Claude and restores the dashboard afterwards.
+// Tea releases the screen for Agent and restores the dashboard afterwards.
 func (m model) attach(p project.Project, task project.Task) (tea.Model, tea.Cmd) {
 	// Remember where to land when the session ends: back in Mission Control if
 	// that's where we came from, otherwise the dashboard.
@@ -341,12 +354,23 @@ func (m model) attach(p project.Project, task project.Task) (tea.Model, tea.Cmd)
 		m.afterAttach = scrDashboard
 	}
 	if !m.tmux.HasSession(task.Session) {
-		if _, err := exec.LookPath(m.cfg.ClaudeCommand); err != nil {
-			m.notice = fmt.Sprintf("Claude Code not found on PATH (looked for %q)", m.cfg.ClaudeCommand)
+		cmd := task.AgentCommand
+		if cmd == "" {
+			cmd = p.AgentCommand
+		}
+		if cmd == "" {
+			cmd = m.cfg.ClaudeCommand
+		}
+		bin := cmd
+		if fields := strings.Fields(cmd); len(fields) > 0 {
+			bin = fields[0]
+		}
+		if _, err := exec.LookPath(bin); err != nil {
+			m.notice = fmt.Sprintf("Agent not found on PATH (looked for %q)", cmd)
 			m.noticeErr = true
 			return m, nil
 		}
-		if err := m.tmux.NewSession(task.Session, p.Path, m.cfg.ClaudeCommand); err != nil {
+		if err := m.tmux.NewSession(task.Session, p.Path, cmd); err != nil {
 			m.notice = fmt.Sprintf("could not start task %q: %v", task.Name, err)
 			m.noticeErr = true
 			return m, nil
@@ -357,7 +381,13 @@ func (m model) attach(p project.Project, task project.Task) (tea.Model, tea.Cmd)
 	// means a plain status bar, so never block the attach on it.
 	_ = m.tmux.Configure(m.cfg.DetachKey)
 	m.notice, m.noticeErr = "", false
-	ex := &attachExec{cmd: m.tmux.AttachCmd(task.Session)}
+	attach := m.tmux.AttachCmd(task.Session)
+	if attach == nil {
+		m.notice = fmt.Sprintf("invalid session name for task %q", task.Name)
+		m.noticeErr = true
+		return m, nil
+	}
+	ex := &attachExec{cmd: attach}
 	return m, tea.Exec(ex, func(err error) tea.Msg { return execDoneMsg{err} })
 }
 

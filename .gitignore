@@ -18,3 +18,6 @@ coverage.*
 /CLAUDE.md
 /.claude/
 /TechnicalDocument.md
+/start_claude.sh
+
+opencode_prompt.md

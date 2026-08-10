@@ -60,9 +60,6 @@ function Get-CrabbyFile {
     }
 
     # Fallback: Invoke-WebRequest, made as browser-like as possible.
-    try {
-        [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
-    } catch {}
 
     Invoke-WebRequest -Uri $Url -OutFile $OutFile -UseBasicParsing `
         -MaximumRedirection 5 -ErrorAction Stop `

@@ -21,14 +21,14 @@ func TestDiscoverMatchesLowercaseClaude(t *testing.T) {
 	}
 	mk("upper", "CLAUDE.md")
 	mk("lower", "claude.md")
-	mk("title", "Claude.md")
+	mk("title", "Agent.md")
 
 	found, err := Discover(root)
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
 	if len(found) != 3 {
-		t.Fatalf("got %d workspaces, want 3 (CLAUDE.md/claude.md/Claude.md)", len(found))
+		t.Fatalf("got %d workspaces, want 3 (CLAUDE.md/claude.md/Agent.md)", len(found))
 	}
 }
 

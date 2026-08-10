@@ -32,7 +32,7 @@ var helpSections = []helpSection{
 		{"esc", "step back / clear a message"},
 	}},
 	{"Workspaces & tasks", []helpEntry{
-		{"enter", "open the selected task in Claude"},
+		{"enter", "open the selected task in AI Agent"},
 		{"n", "new workspace (point it at a folder)"},
 		{"i", "import workspaces found under a folder"},
 		{"t", "new task in the selected workspace"},
@@ -73,6 +73,6 @@ func (m model) viewHelp() string {
 		}
 	}
 	body := strings.TrimRight(b.String(), "\n") + "\n\n" +
-		metaStyle.Render("Inside a Claude session, press "+m.cfg.DetachKey+" to return here.")
+		metaStyle.Render("Inside a AI Agent session, press "+m.cfg.DetachKey+" to return here.")
 	return m.frame("Help", body, actionKey("esc", "back"))
 }

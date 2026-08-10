@@ -1,23 +1,23 @@
 <img width="967" height="141" alt="image" src="https://github.com/user-attachments/assets/63df5554-ea50-4a4e-9abd-4784df9ffcec" />
 
 
-A workspace manager for Claude Code — _by [marioolf](https://github.com/marioolf) · [github.com/marioolf/crabby](https://github.com/marioolf/crabby)_
+A workspace manager for AI Agent — _by [marioolf](https://github.com/marioolf) · [github.com/marioolf/crabby](https://github.com/marioolf/crabby)_
 
-Run `crabby`, pick a project, and you're in Claude. Leave the session with a
+Run `crabby`, pick a project, and you're in Agent. Leave the session with a
 single key and you're back on the project list, ready to jump into the next one.
-Crabby is the home screen for all your Claude Code work.
+Crabby is the home screen for all your AI Agent work.
 
 ```
 crabby                 ← your projects
    │  Enter
    ▼
-Claude (Project A)     ← work
+Agent (Project A)     ← work
    │  F12
    ▼
 crabby                 ← back on the list
    │  Enter
    ▼
-Claude (Project B)     ← switch, instantly
+Agent (Project B)     ← switch, instantly
 ```
 
 No shell commands between sessions. No session names to remember. You never
@@ -25,9 +25,9 @@ leave Crabby.
 
 ## Philosophy
 
-> Make working with multiple Claude Code sessions effortless.
+> Make working with multiple AI Agent sessions effortless.
 
-Crabby is small and opinionated. It assumes **WSL + Claude Code** and needs no
+Crabby is small and opinionated. It assumes **WSL + AI Agent** and needs no
 configuration. Under the hood it uses tmux to keep your sessions alive, but you
 never have to think about it — Crabby owns the whole experience and tmux stays
 out of sight.
@@ -52,7 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/marioolf/crabby/main/install.sh | b
 ```
 
 This downloads the right binary for your architecture into `~/.local/bin` and
-checks tmux and Claude Code.
+checks tmux and AI Agent.
 
 Then confirm everything is ready:
 
@@ -66,7 +66,7 @@ crabby doctor
 ## Everyday use
 
 Crabby is a terminal application. Open it once and stay inside it — creating
-workspaces and tasks, jumping into Claude, and managing packs all happen in the
+workspaces and tasks, jumping into Agent, and managing packs all happen in the
 interface. There are no commands to remember.
 
 ```bash
@@ -108,24 +108,29 @@ and [Workspace insights](#workspace-insights) for where the Details come from.
 
 - **↑ ↓** move within the focused column; **Tab / Shift+Tab** (or **← →**) switch
   between Workspaces and Tasks.
-- **Enter** opens the selected task in Claude. If it wasn't running, Crabby
+- **Enter** opens the selected task in Agent. If it wasn't running, Crabby
   starts it for you.
 - **F12** toggles [Mission Control](#mission-control), the live overview of every
-  Claude task. Inside a Claude session, **F12** brings you straight back here —
+  AI Agent task. Inside a AI Agent session, **F12** brings you straight back here —
   no tmux shortcuts to learn; the session keeps running in the background.
 - **n** creates a new workspace from any folder (see [Packs](#packs)) — the path
   field completes with **Tab** and lists matching sub-directories as you type, and
-  **Ctrl+O** opens the native Windows folder picker.
-- **i** [imports existing Claude workspaces](#adopting-existing-projects) — it
+  **Ctrl+O** opens the native Windows folder picker. You are also asked **which AI
+  agent** (e.g. `claude`, `opencode`, `agy`) to associate with the workspace;
+  this keeps separate workspaces at the same path from overwriting each other (see
+  [Multi-agent workspaces](#multi-agent-workspaces)).
+- **i** [imports existing Agent workspaces](#adopting-existing-projects) — it
   scans your machine automatically.
-- **t** starts a new task in the selected workspace.
+- **t** starts a new task in the selected workspace. You will be asked to choose
+  the **agent** for that task; it can differ from the workspace's default agent
+  (see [Per-task agent selection](#per-task-agent-selection)).
 - **o** opens the selected workspace's folder in the file manager (Windows
   Explorer on WSL), so you can drop files straight into it.
 - **e** relinks a workspace whose folder you've moved or renamed: Crabby flags it
   as `⚠ missing`, and **e** points it at the new folder (updating its name and
   path, keeping its tasks). Crabby can't guess where a folder went, so this is how
   you tell it.
-- **x** stops the highlighted task (asks first) — no need to exit Claude.
+- **x** stops the highlighted task (asks first) — no need to exit Agent.
 - **d** removes the highlighted task, or the whole workspace (asks first). Your
   files are kept; only Crabby forgets it.
 - **p** manages packs, **s** opens Settings, **?** shows the full key list, and
@@ -140,16 +145,16 @@ Crabby has three simple concepts:
 
 - **Workspace** — a project directory with a `CLAUDE.md`. This is the source of
   truth; it's what **n** (new) and **i** (import) register.
-- **Task** — one Claude Code session working inside a workspace. A workspace can
+- **Task** — one AI Agent session working inside a workspace. A workspace can
   have several, each an independent session **sharing the same directory**.
-- **Claude session** — the actual running Claude, one per task, kept alive in
+- **AI Agent session** — the actual running Agent, one per task, kept alive in
   its own tmux session (named automatically, e.g. `crabby_payments_tests`).
 
 One workspace, multiple tasks. This lets you run parallel efforts in the same
 repository without cloning it — all from the home screen:
 
 - Select the workspace and press **t** to start a new task (say `refactor`); it
-  opens straight away in its own Claude.
+  opens straight away in its own Agent.
 - Press **t** again for a second, independent task (say `tests`) in the same repo.
 - Both appear in the **Tasks** column; **Tab** into it, pick one, **Enter** to
   open, **d** to remove it (the workspace stays).
@@ -157,11 +162,33 @@ repository without cloning it — all from the home screen:
 Every workspace starts with one default task (`main`), so a workspace with a
 single task behaves exactly like a single session. Tasks are independent — Crabby
 does not coordinate them, share memory between them, or manage git branches; each
-is just its own Claude.
+is just its own Agent.
+
+## Multi-agent workspaces
+
+Crabby supports running **multiple AI agents side by side**, even on the same
+project directory. When you open a second workspace pointing at a folder that is
+already registered, Crabby checks whether the agent differs:
+
+- **Same agent** → the existing workspace is reused (no duplication).
+- **Different agent** → a new, independent workspace is created with a unique
+  name derived from the path and the agent binary (e.g. `payments-opencode`).
+
+This means you can have, for example, a `claude` workspace and an `opencode`
+workspace both targeting `/repos/payments` and switch between them from the
+dashboard without either one overwriting the other.
+
+## Per-task agent selection
+
+When you press **t** to create a task, Crabby asks you which agent should run it.
+The selected agent is saved with the task in `projects.json` and used whenever
+that task is opened, independently of the workspace's default agent. This lets
+you run a `claude` task and an `opencode` task inside the same workspace at the
+same time, each in its own tmux session.
 
 ## Workspace insights
 
-Crabby reads Claude Code's own session transcripts to show, at a glance, what is
+Crabby reads AI Agent's own session transcripts to show, at a glance, what is
 happening across every workspace — without attaching to a single one. Each
 workspace shows only the information that is actually available:
 
@@ -183,11 +210,11 @@ And a global summary sits below the list:
 | Metric | Source | Notes |
 | --- | --- | --- |
 | State (running / waiting / stopped) | tmux | Reliable. Running = attached, waiting = alive, stopped = no session. |
-| Activity (Thinking / Editing files / Reading files / Running command / Responding / Waiting for input / Idle) | Claude transcript tail + tmux "working" signal | Best-effort. Derived from the last recorded step, so it can lag the live terminal by a moment. Only the fine label; the coarse state is always reliable. |
-| Model | Claude transcript | Reliable — the model of the latest turn. |
-| Tokens (per workspace) | Claude transcript | Reliable. Input + output for the **current session** (cache tokens excluded). |
-| Tokens today (global summary) | Claude transcript | Reliable. Input + output across the workspace's transcripts **dated today**. |
-| Last activity | Claude transcript | Reliable — timestamp of the last recorded turn. |
+| Activity (Thinking / Editing files / Reading files / Running command / Responding / Waiting for input / Idle) | Agent transcript tail + tmux "working" signal | Best-effort. Derived from the last recorded step, so it can lag the live terminal by a moment. Only the fine label; the coarse state is always reliable. |
+| Model | Agent transcript | Reliable — the model of the latest turn. |
+| Tokens (per workspace) | Agent transcript | Reliable. Input + output for the **current session** (cache tokens excluded). |
+| Tokens today (global summary) | Agent transcript | Reliable. Input + output across the workspace's transcripts **dated today**. |
+| Last activity | Agent transcript | Reliable — timestamp of the last recorded turn. |
 | Uptime | tmux | Reliable — how long the session has been alive. |
 | Branch | git (read directly) | Reliable when the folder is a git repository. |
 
@@ -196,14 +223,14 @@ completion times, and it omits any field it cannot read reliably rather than
 showing a placeholder. Transcripts are read incrementally — only the bytes added
 since the last refresh — so the dashboard stays fast with many workspaces.
 
-Metrics that depend on Claude Code (activity, model, tokens, last activity)
-require Claude's transcript files under `~/.claude/projects/`. If Claude Code has
+Metrics that depend on AI Agent (activity, model, tokens, last activity)
+require the Agent's transcript files under `~/.claude/projects/`. If AI Agent has
 never run in a workspace, those fields are simply absent and the workspace still
 shows its tmux state, branch, and uptime.
 
 ## Adopting existing projects
 
-If you already use Claude Code, you probably have repositories with a `CLAUDE.md`
+If you already use AI Agent, you probably have repositories with a `CLAUDE.md`
 in them. You don't need to recreate them — bring them in as they are, from inside
 Crabby.
 
@@ -217,7 +244,7 @@ finds every folder with a `CLAUDE.md` (or `claude.md`), and lists them:
 
                    Import workspaces
 
-        Found 4 Claude workspaces   ·   Selected: 2
+        Found 4 Agent workspaces   ·   Selected: 2
 
         ▌ [✔] payments
               ✔ already imported  ·  /repos/payments
@@ -253,8 +280,8 @@ importable.
 
 ## Mission Control
 
-Press **F12** to open **Mission Control** — a live overview of *every* Claude task
-at once, so you can see what all your Claude workers are doing without attaching to
+Press **F12** to open **Mission Control** — a live overview of *every* AI Agent task
+at once, so you can see what all your Agent workers are doing without attaching to
 each one. **F12** again returns to the dashboard.
 
 ```
@@ -289,7 +316,7 @@ Each card is one task. It shows the status Crabby can read reliably — **Workin
 transcript is available, and a short **live preview** of the session's screen.
 
 The preview comes from `tmux capture-pane`, reduced to the last few lines that
-actually carry content: Crabby strips the box art, blank lines and Claude's
+actually carry content: Crabby strips the box art, blank lines and the Agent's
 persistent status bar, so the card shows recent output and the current prompt
 rather than the whole terminal. Mission Control is an **observation surface**, not
 a terminal emulator — it never lets you type into multiple sessions at once.
@@ -308,7 +335,7 @@ command line is intentionally tiny.
 | Command | What it does |
 | --- | --- |
 | `crabby` | Open the application — the home screen and everything from there. |
-| `crabby doctor` | Check that WSL, Ubuntu, tmux, Claude, and crabby are present. |
+| `crabby doctor` | Check that WSL, Ubuntu, tmux, Agent, and crabby are present. |
 | `crabby version` | Print the installed version. |
 
 Creating and importing workspaces, managing tasks, and managing packs all moved
@@ -384,12 +411,12 @@ copy one of the bundled examples in [`examples/`](examples/) (`simple-pack`,
 | State | Meaning |
 | --- | --- |
 | 🟢 `Running` | You're attached — this is the session you're in. |
-| 🟡 `Waiting` | Claude is alive in the background; press Enter to jump back in. |
+| 🟡 `Waiting` | Agent is alive in the background; press Enter to jump back in. |
 | ⚪ `Stopped` | Nothing running; press Enter to start fresh. |
 
 A live session that is actively producing output shows what it's doing (e.g.
 `Working`, `Thinking…`, `Editing files`), so you can see at a glance which of
-your Claude workers are busy. See [Workspace insights](#workspace-insights).
+your Agent workers are busy. See [Workspace insights](#workspace-insights).
 
 ## Notifications
 
@@ -399,7 +426,7 @@ top, and a session that has just started producing output rings a short
 terminal bell.
 
 **Limitation, stated honestly:** Crabby cannot pop a desktop notification *while
-you are inside a Claude session*. When you open a session, Crabby hands the
+you are inside a AI Agent session*. When you open a session, Crabby hands the
 whole terminal to it and waits — it is not running in the background, so it has
 nothing to notify *from*. Reliable cross-session desktop alerts would require a
 background daemon, which this project intentionally avoids. The practical,
@@ -413,12 +440,14 @@ Crabby needs no configuration. If you want to change something, edit
 `~/.config/crabby/config.yaml`:
 
 ```yaml
-claude_command: claude   # how to launch Claude Code
+claude_command: claude   # default agent command (overridable per workspace / task)
 tmux_binary: tmux        # tmux binary to use
 detach_key: F12          # key that returns you to Crabby
 ```
 
-Projects are recorded in `~/.local/share/crabby/projects.json`.
+Projects are recorded in `~/.local/share/crabby/projects.json`. Each entry
+includes the agent command used for that workspace and for each individual task,
+so the right agent is launched automatically on `Enter`.
 
 If your keyboard sends F12 somewhere else, set `detach_key` to another
 [tmux key name](https://man.openbsd.org/tmux#KEY_BINDINGS) such as `C-g`.
@@ -433,7 +462,7 @@ internal/
     cli/               # cobra: `crabby`, `version`, `doctor`
     initcmd/           # workspace initialization (+ pack application)
     importcmd/         # workspace discovery for import
-    insights/          # reads Claude transcripts for dashboard metrics
+    insights/          # reads Agent transcripts for dashboard metrics
     pack/              # local project packs (list + create/duplicate/delete)
     project/           # projects.json registry
     session/           # project <-> session mapping + state

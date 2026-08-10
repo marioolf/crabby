@@ -23,7 +23,7 @@ func Run(cfg config.Config) []Check {
 		checkWSL(),
 		checkUbuntu(),
 		checkBinary("tmux installed", cfg.TmuxBinary),
-		checkBinary("Claude installed", cfg.ClaudeCommand),
+		checkBinary("Agent installed", cfg.ClaudeCommand),
 		checkCrabby(),
 	}
 }
