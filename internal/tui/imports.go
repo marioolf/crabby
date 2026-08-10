@@ -168,7 +168,7 @@ func (m model) performImport() (tea.Model, tea.Cmd) {
 		if !m.importSel[i] || w.Imported {
 			continue
 		}
-		if _, err := initcmd.Init(w.Path, nil); err == nil {
+		if _, err := initcmd.Init(w.Path, nil, ""); err == nil {
 			imported++
 		}
 	}
@@ -184,20 +184,20 @@ func (m model) performImport() (tea.Model, tea.Cmd) {
 
 func (m model) viewImport() string {
 	if m.importStep == importStepScanning {
-		body := metaStyle.Render("Scanning your machine for Claude workspaces…") + "\n" +
+		body := metaStyle.Render("Scanning your machine for Agent workspaces…") + "\n" +
 			metaStyle.Render("(your WSL home and the common project folders on your Windows drives)")
 		return m.frame("Import workspaces", body, actionKey("esc", "cancel"))
 	}
 
 	var b strings.Builder
 	if len(m.importList) == 0 {
-		b.WriteString(metaStyle.Render("No Claude workspaces found.") + "\n\n")
+		b.WriteString(metaStyle.Render("No Agent workspaces found.") + "\n\n")
 		b.WriteString(metaStyle.Render("A workspace is any folder with a CLAUDE.md.") + "\n")
 		footer := actionKey("r", "rescan") + "   " + actionKey("esc", "back")
 		return m.frame("Import workspaces", b.String(), footer)
 	}
 
-	b.WriteString(headerStyle.Render(fmt.Sprintf("Found %s", plural(len(m.importList), "Claude workspace"))))
+	b.WriteString(headerStyle.Render(fmt.Sprintf("Found %s", plural(len(m.importList), "Agent workspace"))))
 	b.WriteString(metaStyle.Render(fmt.Sprintf("   ·   Selected: %d", m.importSelectedCount())))
 	b.WriteString("\n\n")
 
@@ -208,10 +208,10 @@ func (m model) viewImport() string {
 	for i := start; i < end; i++ {
 		w := m.importList[i]
 		bar := "  "
-		name := nameStyle.Render(w.Name)
+		name := nameStyle.Render(sanitizeRender(w.Name))
 		if i == m.importCursor {
 			bar = barStyle.Render("▌ ")
-			name = selNameStyle.Render(w.Name)
+			name = selNameStyle.Render(sanitizeRender(w.Name))
 		}
 		b.WriteString(bar + importCheckbox(w.Imported, m.importSel[i]) + " " + name + "\n")
 		detail := w.Path

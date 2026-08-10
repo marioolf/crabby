@@ -101,6 +101,9 @@ func Load(dir string) (Pack, error) {
 	if p.Name == "" {
 		return Pack{}, fmt.Errorf("%s: %s is missing a 'name'", filepath.Base(abs), manifest)
 	}
+	if err := validateName(p.Name); err != nil {
+		return Pack{}, err
+	}
 	return p, nil
 }
 
@@ -124,6 +127,9 @@ func Apply(p Pack, projectDir string) (copied, skipped []string, err error) {
 		if d.IsDir() {
 			return os.MkdirAll(dest, 0o755)
 		}
+		if d.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("pack contains symlink %q — not allowed", rel)
+		}
 		if _, statErr := os.Stat(dest); statErr == nil {
 			skipped = append(skipped, rel)
 			return nil
@@ -138,6 +144,14 @@ func Apply(p Pack, projectDir string) (copied, skipped []string, err error) {
 }
 
 func copyFile(src, dest string) error {
+	info, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("symlink not allowed: %s", src)
+	}
+
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
@@ -147,7 +161,7 @@ func copyFile(src, dest string) error {
 	}
 	defer in.Close()
 
-	info, err := in.Stat()
+	info, err = in.Stat()
 	if err != nil {
 		return err
 	}
@@ -177,6 +191,19 @@ func parseManifest(data []byte) Pack {
 		}
 		key := strings.TrimSpace(line[:idx])
 		val := strings.Trim(strings.TrimSpace(line[idx+1:]), `"'`)
+
+		var b strings.Builder
+		for _, r := range val {
+			if r == 0x1b || r == 0x7f {
+				continue
+			}
+			if (r >= 0x00 && r <= 0x1f && r != '\n' && r != '\t') || (r >= 0x80 && r <= 0x9f) {
+				continue
+			}
+			b.WriteRune(r)
+		}
+		val = b.String()
+
 		switch key {
 		case "name":
 			p.Name = val

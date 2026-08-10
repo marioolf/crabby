@@ -18,11 +18,11 @@ func TestIdentityText(t *testing.T) {
 	if Wordmark != "CRABBY" {
 		t.Errorf("Wordmark = %q", Wordmark)
 	}
-	if Tagline != "Many Claudes. One shell." {
+	if Tagline != "Many Agents. One shell." {
 		t.Errorf("Tagline = %q", Tagline)
 	}
-	// "claude" is intentionally lowercase and the separator is U+00B7.
-	if Subtitle != "prepare projects · orchestrate claude · one terminal" {
+	// "agents" is intentionally lowercase and the separator is U+00B7.
+	if Subtitle != "prepare projects · orchestrate agents · one terminal" {
 		t.Errorf("Subtitle = %q", Subtitle)
 	}
 }

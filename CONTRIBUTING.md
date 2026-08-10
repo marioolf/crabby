@@ -3,7 +3,7 @@
 Thanks for your interest in Crabby! It is intentionally small — please keep
 changes focused and in line with its philosophy:
 
-> Make working with multiple Claude Code sessions effortless.
+> Make working with multiple AI Agent sessions effortless.
 
 Crabby is **not** a Git client, a tmux replacement, a project manager, an IDE,
 or an AI orchestrator. Features outside that scope will not be accepted.
@@ -11,7 +11,7 @@ or an AI orchestrator. Features outside that scope will not be accepted.
 ## Requirements
 
 - [Go](https://go.dev) 1.23+
-- tmux and [Claude Code](https://claude.com/claude-code) (to run it end-to-end)
+- tmux and [AI Agent](https://claude.com/claude-code) (to run it end-to-end)
 - WSL2 + Ubuntu (the only supported runtime)
 
 ## Development

@@ -17,11 +17,11 @@ var (
 
 // Identity text, kept verbatim by design:
 //   - the support line's separator is "·" (U+00B7) with surrounding spaces;
-//   - "claude" is intentionally lowercase in the support line.
+//   - "agents" is intentionally lowercase in the support line.
 const (
 	Wordmark = "CRABBY"
-	Tagline  = "Many Claudes. One shell."
-	Subtitle = "prepare projects · orchestrate claude · one terminal"
+	Tagline  = "Many Agents. One shell."
+	Subtitle = "prepare projects · orchestrate agents · one terminal"
 )
 
 // crabArt is the crab in its resting pose: claws on top, then face, body, and

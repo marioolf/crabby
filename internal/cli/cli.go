@@ -31,11 +31,11 @@ func Execute() int {
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "crabby",
-		Short: "A workspace manager for Claude Code",
+		Short: "A workspace manager for AI Agent",
 		Long: tui.Banner() + "\n\n" +
-			"A workspace manager for Claude Code.\n" +
+			"A workspace manager for AI Agent.\n" +
 			"Run it with no arguments to open the app: create workspaces and tasks,\n" +
-			"jump into Claude, and manage packs — all without leaving the terminal.\n\n" +
+			"jump into Agent, and manage packs — all without leaving the terminal.\n\n" +
 			version.Repo,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -69,7 +69,7 @@ func home() error {
 		return errTmuxMissing(cfg.TmuxBinary)
 	}
 	// One collector for the whole session so its incremental transcript cache
-	// survives returning from a Claude session.
+	// survives returning from a AI Agent session.
 	return tui.Run(cfg, t, insights.New())
 }
 

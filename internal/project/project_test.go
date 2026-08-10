@@ -1,6 +1,11 @@
 package project
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"sync"
+	"testing"
+)
 
 func TestRegisterFindAndUpdate(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
@@ -140,5 +145,93 @@ func TestRemove(t *testing.T) {
 
 	if err := Remove("missing"); err != ErrNotFound {
 		t.Fatalf("Remove(missing) = %v, want ErrNotFound", err)
+	}
+}
+
+func TestRegistryPermissionsArePrivate(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	if err := Save([]Project{{Name: "private", Path: "/private", Session: "crabby_private"}}); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(home, ".local", "share", "crabby")
+	for _, path := range []string{dir, filepath.Join(dir, "projects.json"), filepath.Join(dir, ".lock")} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("stat %s: %v", path, err)
+		}
+		if got := info.Mode().Perm(); got != map[string]os.FileMode{
+			dir:                                 0o700,
+			filepath.Join(dir, "projects.json"): 0o600,
+			filepath.Join(dir, ".lock"):         0o600,
+		}[path] {
+			t.Fatalf("permissions for %s = %o, want %o", path, got, map[string]os.FileMode{
+				dir:                                 0o700,
+				filepath.Join(dir, "projects.json"): 0o600,
+				filepath.Join(dir, ".lock"):         0o600,
+			}[path])
+		}
+	}
+
+	if err := os.Chmod(filepath.Join(dir, "projects.json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save([]Project{{Name: "private", Path: "/private", Session: "crabby_private"}}); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(filepath.Join(dir, "projects.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("existing registry permissions = %o, want 600", got)
+	}
+}
+
+func TestConcurrentRegistryUpdatesArePreserved(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	const count = 8
+	var wg sync.WaitGroup
+	errs := make(chan error, count)
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs <- Register(Project{
+				Name:    "workspace-" + string(rune('a'+i)),
+				Path:    "/workspace/" + string(rune('a'+i)),
+				Session: "crabby_workspace_" + string(rune('a'+i)),
+			})
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	projects, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projects) != count {
+		t.Fatalf("concurrent Register preserved %d projects, want %d", len(projects), count)
+	}
+}
+
+func TestRegisterRejectsSessionCollisionAcrossWorkspaces(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := Register(Project{Name: "foo_bar", Path: "/foo_bar", Session: "crabby_foo_bar"}); err != nil {
+		t.Fatal(err)
+	}
+	err := Register(Project{
+		Name:  "foo",
+		Path:  "/foo",
+		Tasks: []Task{{Name: "bar", Session: "crabby_foo_bar"}},
+	})
+	if err == nil {
+		t.Fatal("Register accepted a colliding session")
 	}
 }

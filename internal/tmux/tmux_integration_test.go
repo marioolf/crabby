@@ -97,3 +97,10 @@ func TestExactTargetsAvoidPrefixMatching(t *testing.T) {
 		t.Fatalf("KillSession(%q) did not remove it", base)
 	}
 }
+
+func TestInvalidSessionNamesNeverBuildAttachCommand(t *testing.T) {
+	c := New("tmux")
+	if cmd := c.AttachCmd("crabby_bad; run-shell 'owned'"); cmd != nil {
+		t.Fatal("AttachCmd built a command for an invalid session name")
+	}
+}

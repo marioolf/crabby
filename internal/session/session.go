@@ -4,6 +4,8 @@
 package session
 
 import (
+	"strings"
+
 	"github.com/marioolf/crabby/internal/project"
 	"github.com/marioolf/crabby/internal/tmux"
 )
@@ -20,16 +22,26 @@ const (
 	Stopped State = "Stopped"
 )
 
+func sanitize(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
 // Name returns the tmux session name for a workspace's default task. Kept as
 // "crabby_<workspace>" so single-task workspaces match their pre-tasks name.
 func Name(projectName string) string {
-	return "crabby_" + projectName
+	return "crabby_" + sanitize(projectName)
 }
 
 // TaskSession builds the tmux session name for a named task, e.g.
 // "crabby_payments_tests". Users never type these — Crabby manages them.
 func TaskSession(workspace, task string) string {
-	return "crabby_" + workspace + "_" + task
+	return "crabby_" + sanitize(workspace) + "_" + sanitize(task)
 }
 
 // Classify maps a session's presence and attachment into a State. Used by the

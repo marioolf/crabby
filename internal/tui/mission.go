@@ -14,7 +14,7 @@ import (
 	"github.com/marioolf/crabby/internal/session"
 )
 
-// Mission Control is a live overview of every Claude task at once: one card per
+// Mission Control is a live overview of every AI Agent task at once: one card per
 // task, each showing its status and a short preview of what its tmux session is
 // currently showing. It is an observation surface — never a terminal emulator —
 // and is kept entirely separate from the dashboard's rendering.
@@ -137,11 +137,11 @@ func (m *model) previewFor(name string, activity time.Time) []string {
 	return lines
 }
 
-// previewLines reduces a captured pane to its last few useful lines. Claude's
+// previewLines reduces a captured pane to its last few useful lines. the Agent's
 // UI fills the bottom of the pane with its input box and a persistent status
 // line, so a naive "last N lines" shows only chrome; this strips box-drawing,
 // blank and status lines and keeps the most recent lines that actually carry
-// words — the closest reliable signal to what Claude last said or is being asked.
+// words — the closest reliable signal to what Agent last said or is being asked.
 func previewLines(raw string) []string {
 	if raw == "" {
 		return nil
@@ -158,7 +158,7 @@ func previewLines(raw string) []string {
 	return useful
 }
 
-// boxRunes are the frame characters Claude (and other TUIs) draw around content.
+// boxRunes are the frame characters Agent (and other TUIs) draw around content.
 const boxRunes = "─│╭╮╰╯┌┐└┘├┤┬┴┼═║╔╗╚╝▌▐▕▏"
 
 // trimBox strips surrounding box-drawing characters and spaces, leaving the
@@ -170,7 +170,7 @@ func trimBox(s string) string {
 }
 
 // usefulLine reports whether a line carries real content rather than decoration
-// or Claude's persistent status chrome.
+// or the Agent's persistent status chrome.
 func usefulLine(t string) bool {
 	if t == "" {
 		return false
@@ -240,7 +240,7 @@ func (m model) updateMission(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) viewMission() string {
 	if len(m.mc.cards) == 0 {
-		body := metaStyle.Render("No Claude tasks yet.\nCreate one with  t  on the dashboard, then F12 to watch them here.")
+		body := metaStyle.Render("No AI Agent tasks yet.\nCreate one with  t  on the dashboard, then F12 to watch them here.")
 		return m.frame("Mission Control", body, m.missionFooter())
 	}
 
@@ -390,13 +390,13 @@ func cardStatus(c missionCard) (string, lipgloss.Style) {
 func cardMeta(c missionCard) string {
 	var parts []string
 	if c.branch != "" {
-		parts = append(parts, c.branch)
+		parts = append(parts, sanitizeRender(c.branch))
 	}
 	if c.uptime > 0 {
 		parts = append(parts, "up "+formatDuration(c.uptime))
 	}
 	if c.insight.Model != "" {
-		parts = append(parts, c.insight.Model)
+		parts = append(parts, sanitizeRender(c.insight.Model))
 	}
 	if c.insight.SessionTokens > 0 {
 		parts = append(parts, formatTokens(c.insight.SessionTokens)+" tok")
@@ -428,7 +428,7 @@ func withGaps(boxes []string) []string {
 
 // truncate shortens plain text to at most w display columns, marking the cut
 // with an ellipsis. It measures display width (not rune count), so wide glyphs
-// that Claude prints — ✻, ※, box art — don't overflow the card and wrap.
+// that Agent prints — ✻, ※, box art — don't overflow the card and wrap.
 func truncate(s string, w int) string {
 	if w <= 0 {
 		return ""

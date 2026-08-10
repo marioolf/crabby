@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -22,7 +23,24 @@ type wsStep int
 const (
 	wsStepDir wsStep = iota
 	wsStepPack
+	wsStepAgent
 )
+
+func getInstalledAgents() []AgentItem {
+	candidates := []AgentItem{
+		{Name: "Claude Code", Command: "claude", AutoApproveFlag: "--permission-mode auto"},
+		{Name: "Antigravity CLI", Command: "agy", AutoApproveFlag: "--dangerously-skip-permissions"},
+		{Name: "Aider", Command: "aider", AutoApproveFlag: "--yes-always"},
+		{Name: "OpenCode", Command: "opencode", AutoApproveFlag: "--auto"},
+	}
+	var installed []AgentItem
+	for _, c := range candidates {
+		if _, err := exec.LookPath(c.Command); err == nil {
+			installed = append(installed, c)
+		}
+	}
+	return installed
+}
 
 // --- New workspace ---------------------------------------------------------
 
@@ -59,10 +77,10 @@ func (m model) updateNewWorkspace(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			packs, _ := pack.List()
 			switch len(packs) {
 			case 0:
-				return m.createWorkspace(nil)
+				return m.nextAfterPack(nil)
 			case 1:
 				p := packs[0]
-				return m.createWorkspace(&p)
+				return m.nextAfterPack(&p)
 			default:
 				m.packList = packs
 				m.packCursor = 0
@@ -85,11 +103,39 @@ func (m model) updateNewWorkspace(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.packCursor++
 			}
 		case "enter":
-			if m.packCursor >= len(m.packList) {
-				return m.createWorkspace(nil)
+			var p *pack.Pack
+			if m.packCursor < len(m.packList) {
+				p = &m.packList[m.packCursor]
 			}
-			p := m.packList[m.packCursor]
-			return m.createWorkspace(&p)
+			return m.nextAfterPack(p)
+		}
+	case wsStepAgent:
+		switch msg.String() {
+		case " ":
+			m.agentAutoApprove = !m.agentAutoApprove
+		case "esc":
+			if len(m.packList) > 1 {
+				m.wsStep = wsStepPack
+			} else {
+				m.wsStep = wsStepDir
+			}
+		case "up", "k":
+			if m.agentCursor > 0 {
+				m.agentCursor--
+			}
+		case "down", "j":
+			if m.agentCursor < len(m.agentList) {
+				m.agentCursor++
+			}
+		case "enter":
+			agentCmd := ""
+			if m.agentCursor < len(m.agentList) {
+				agentCmd = m.agentList[m.agentCursor].Command
+				if m.agentAutoApprove && m.agentList[m.agentCursor].AutoApproveFlag != "" {
+					agentCmd += " " + m.agentList[m.agentCursor].AutoApproveFlag
+				}
+			}
+			return m.createWorkspace(m.wsPack, agentCmd)
 		}
 	}
 	return m, nil
@@ -98,8 +144,21 @@ func (m model) updateNewWorkspace(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // createWorkspace runs init for the captured directory and pack, returning to
 // the dashboard with the new workspace selected. On failure it keeps the flow
 // open so the path can be corrected.
-func (m model) createWorkspace(p *pack.Pack) (tea.Model, tea.Cmd) {
-	res, err := initcmd.Init(m.wsDir, p)
+func (m model) nextAfterPack(p *pack.Pack) (tea.Model, tea.Cmd) {
+	m.wsPack = p
+	agents := getInstalledAgents()
+	if len(agents) == 0 {
+		return m.createWorkspace(p, "")
+	}
+	m.agentList = agents
+	m.agentCursor = 0
+	m.agentAutoApprove = false
+	m.wsStep = wsStepAgent
+	return m, nil
+}
+
+func (m model) createWorkspace(p *pack.Pack, agentCmd string) (tea.Model, tea.Cmd) {
+	res, err := initcmd.Init(m.wsDir, p, agentCmd)
 	if err != nil {
 		m.notice, m.noticeErr = err.Error(), true
 		m.wsStep = wsStepDir
@@ -118,6 +177,25 @@ func (m model) createWorkspace(p *pack.Pack) (tea.Model, tea.Cmd) {
 
 func (m model) viewNewWorkspace() string {
 	switch m.wsStep {
+	case wsStepAgent:
+		var b strings.Builder
+		b.WriteString(metaStyle.Render(m.wsDir) + "\n\n")
+		b.WriteString("Choose an AI Agent:\n\n")
+		for i, a := range m.agentList {
+			b.WriteString(m.selectLine(i == m.agentCursor, a.Name))
+			b.WriteString("  " + metaStyle.Render("Command: "+a.Command) + "\n")
+		}
+		b.WriteString(m.selectLine(m.agentCursor >= len(m.agentList), "Default global agent"))
+
+		b.WriteString("\n\n")
+		if m.agentAutoApprove {
+			b.WriteString(okStyle.Render("  [x] Auto-approve ON"))
+		} else {
+			b.WriteString(metaStyle.Render("  [ ] Auto-approve OFF"))
+		}
+
+		footer := actionKey("↑↓", "move") + "   " + actionKey("space", "toggle auto-approve") + "   " + actionKey("enter", "create") + "   " + actionKey("esc", "back")
+		return m.frame("New workspace", b.String(), footer)
 	case wsStepPack:
 		var b strings.Builder
 		b.WriteString(metaStyle.Render(m.wsDir) + "\n\n")
@@ -253,50 +331,125 @@ func wrapMatches(matches []string, width int) string {
 // selectLine renders one selectable row with the accent bar when chosen.
 func (m model) selectLine(selected bool, label string) string {
 	if selected {
-		return barStyle.Render("▌ ") + selNameStyle.Render(label)
+		return barStyle.Render("▌ ") + selNameStyle.Render(sanitizeRender(label))
 	}
-	return "  " + nameStyle.Render(label)
+	return "  " + nameStyle.Render(sanitizeRender(label))
 }
+
+type newTaskStep int
+
+const (
+	newTaskStepName newTaskStep = iota
+	newTaskStepAgent
+)
 
 // --- New task --------------------------------------------------------------
 
 func (m model) startNewTask(p project.Project) (tea.Model, tea.Cmd) {
 	m.screen = scrNewTask
 	m.formProj = p
+	m.newTaskStep = newTaskStepName
+	m.agentAutoApprove = false
 	m.input = newTextInput("")
 	m.notice = ""
 	return m, nil
 }
 
 func (m model) updateNewTask(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
-		m.goDashboard()
-	case "enter":
-		name := strings.TrimSpace(m.input.Value())
-		if name == "" {
-			return m, nil
+	switch m.newTaskStep {
+	case newTaskStepName:
+		switch msg.String() {
+		case "esc":
+			m.goDashboard()
+		case "enter":
+			name := strings.TrimSpace(m.input.Value())
+			if name == "" {
+				return m, nil
+			}
+			if err := validateTaskName(name); err != nil {
+				m.notice, m.noticeErr = err.Error(), true
+				return m, nil
+			}
+
+			agents := getInstalledAgents()
+			if len(agents) == 0 {
+				return m.finishNewTask(name, "")
+			}
+			m.newTaskName = name
+			m.agentList = agents
+			m.agentCursor = 0
+			m.agentAutoApprove = false
+			m.newTaskStep = newTaskStepAgent
+		default:
+			m.input = m.input.update(msg)
 		}
-		tk, err := createTask(m.formProj, name)
-		if err != nil {
-			m.notice, m.noticeErr = err.Error(), true
-			return m, nil
+	case newTaskStepAgent:
+		switch msg.String() {
+		case " ":
+			m.agentAutoApprove = !m.agentAutoApprove
+		case "esc":
+			m.newTaskStep = newTaskStepName
+		case "up", "k":
+			if m.agentCursor > 0 {
+				m.agentCursor--
+			}
+		case "down", "j":
+			if m.agentCursor < len(m.agentList) { // Allow selecting "Default global agent"
+				m.agentCursor++
+			}
+		case "enter":
+			agentCmd := ""
+			if m.agentCursor < len(m.agentList) {
+				agentCmd = m.agentList[m.agentCursor].Command
+				if m.agentAutoApprove && m.agentList[m.agentCursor].AutoApproveFlag != "" {
+					agentCmd += " " + m.agentList[m.agentCursor].AutoApproveFlag
+				}
+			}
+			return m.finishNewTask(m.newTaskName, agentCmd)
 		}
-		proj := m.formProj
-		m.goDashboard()
-		m.refresh()
-		m.selectByName(proj.Name)
-		// Open the new task straight away — a parallel session without leaving Crabby.
-		return m, func() tea.Msg { return openTaskMsg{proj, tk} }
-	default:
-		m.input = m.input.update(msg)
 	}
 	return m, nil
 }
 
+func (m model) finishNewTask(name, agentCmd string) (tea.Model, tea.Cmd) {
+	tk, err := createTask(m.formProj, name, agentCmd)
+	if err != nil {
+		m.notice, m.noticeErr = err.Error(), true
+		m.newTaskStep = newTaskStepName
+		return m, nil
+	}
+	proj := m.formProj
+	m.goDashboard()
+	m.refresh()
+	m.selectByName(proj.Name)
+	// Open the new task straight away — a parallel session without leaving Crabby.
+	return m, func() tea.Msg { return openTaskMsg{proj, tk} }
+}
+
 func (m model) viewNewTask() string {
+	if m.newTaskStep == newTaskStepAgent {
+		var b strings.Builder
+		b.WriteString(metaStyle.Render(fmt.Sprintf("New task %q in %q", m.newTaskName, m.formProj.Name)) + "\n\n")
+		b.WriteString("Choose an AI Agent:\n\n")
+		for i, a := range m.agentList {
+			b.WriteString(m.selectLine(i == m.agentCursor, a.Name))
+			b.WriteString("  " + metaStyle.Render("Command: "+a.Command) + "\n")
+		}
+		b.WriteString(m.selectLine(m.agentCursor >= len(m.agentList), "Default global agent"))
+
+		b.WriteString("\n\n")
+		if m.agentAutoApprove {
+			b.WriteString(okStyle.Render("  [x] Auto-approve ON"))
+		} else {
+			b.WriteString(metaStyle.Render("  [ ] Auto-approve OFF"))
+		}
+
+		footer := actionKey("↑↓", "move") + "   " + actionKey("space", "toggle auto-approve") + "   " + actionKey("enter", "create & open") + "   " + actionKey("esc", "back")
+		return m.frame("New task", b.String(), footer)
+	}
+
 	body := fmt.Sprintf("New task in %q.\n\nTask name:\n\n  ", m.formProj.Name) + m.input.view("e.g. tests, docs, refactor")
-	footer := actionKey("enter", "create & open") + "   " + actionKey("esc", "cancel")
+	footer := actionKey("enter", "continue") + "   " + actionKey("esc", "cancel")
 	return m.frame("New task", body, footer)
 }
 
@@ -304,14 +457,15 @@ func (m model) viewNewTask() string {
 
 // createTask validates a name, builds its session, and registers it in the
 // workspace. It does not start the session — the caller opens it.
-func createTask(p project.Project, name string) (project.Task, error) {
+func createTask(p project.Project, name, agentCmd string) (project.Task, error) {
 	if err := validateTaskName(name); err != nil {
 		return project.Task{}, err
 	}
 	tk := project.Task{
-		Name:    name,
-		Session: session.TaskSession(p.Name, name),
-		Created: time.Now(),
+		Name:         name,
+		Session:      session.TaskSession(p.Name, name),
+		Created:      time.Now(),
+		AgentCommand: agentCmd,
 	}
 	if err := project.AddTask(p.Name, tk); err != nil {
 		return project.Task{}, fmt.Errorf("creating task %q: %w", name, err)

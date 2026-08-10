@@ -1,8 +1,8 @@
-// Package insights reads Claude Code's own session transcripts to surface
+// Package insights reads AI Agent's own session transcripts to surface
 // factual, per-project information on the dashboard — the model in use, tokens
-// spent, and a best-effort hint of what Claude is doing right now.
+// spent, and a best-effort hint of what Agent is doing right now.
 //
-// Everything here comes from the JSONL transcripts Claude Code writes under
+// Everything here comes from the JSONL transcripts AI Agent writes under
 // ~/.claude/projects/<encoded-path>/<session-id>.jsonl. That is a durable,
 // append-only file source: no terminal scraping, no guessing. Fields that
 // cannot be read reliably are simply left empty rather than estimated.
@@ -11,7 +11,7 @@
 //   - Activity is inferred from the tail of the transcript, which can lag the
 //     live terminal by a moment; callers gate it on tmux's "working" signal.
 //   - A project is matched to its transcript directory by re-encoding its path
-//     the way Claude Code does ('/' and '.' become '-'); if that directory is
+//     the way AI Agent does ('/' and '.' become '-'); if that directory is
 //     absent we fall back to reading the `cwd` recorded inside each transcript.
 //   - There is no reliable source for progress percentages or completion times,
 //     so none are produced.
@@ -27,7 +27,7 @@ import (
 	"time"
 )
 
-// Activity is a coarse, transcript-derived hint of Claude's current action. It
+// Activity is a coarse, transcript-derived hint of the Agent's current action. It
 // describes what the last recorded step was; callers decide how to present it
 // (e.g. only while the session is actively producing output).
 type Activity string
@@ -74,7 +74,7 @@ type fileState struct {
 	detail      string
 }
 
-// New returns a Collector rooted at the current user's Claude projects
+// New returns a Collector rooted at the current user's Agent projects
 // directory. If it cannot be located, the Collector still works and simply
 // reports every project as having no transcript.
 func New() *Collector {
@@ -134,12 +134,12 @@ func (c *Collector) For(path string) Insight {
 	cur := c.update(current, sizeOf(current))
 	ins := Insight{
 		Found:         true,
-		Model:         friendlyModel(cur.model),
+		Model:         sanitizeString(friendlyModel(cur.model)),
 		SessionTokens: sum(cur.tokensByDay),
 		TodayTokens:   todayTokens,
 		LastActivity:  cur.lastTS,
 		Activity:      cur.activity,
-		Detail:        cur.detail,
+		Detail:        sanitizeString(cur.detail),
 	}
 	return ins
 }
@@ -219,7 +219,7 @@ func (st *fileState) apply(line []byte) {
 		return
 	}
 	if rec.Message.Role == "assistant" {
-		// Claude Code tags some injected records with a "<synthetic>" model;
+		// AI Agent tags some injected records with a "<synthetic>" model;
 		// only accept genuine model ids so that marker never reaches the UI.
 		if strings.HasPrefix(rec.Message.Model, "claude-") {
 			st.model = rec.Message.Model
@@ -230,14 +230,14 @@ func (st *fileState) apply(line []byte) {
 		}
 		st.activity, st.detail = activityOf(rec.Message.Content)
 	} else if rec.Message.Role == "user" {
-		// A user turn means Claude's previous turn is finished; the next
+		// A user turn means the Agent's previous turn is finished; the next
 		// assistant record will set the real activity again.
 		st.activity, st.detail = Responding, ""
 	}
 }
 
 // activityOf reads an assistant message's content blocks and returns what the
-// final meaningful block indicates Claude is doing.
+// final meaningful block indicates Agent is doing.
 func activityOf(content json.RawMessage) (Activity, string) {
 	var blocks []contentBlock
 	if json.Unmarshal(content, &blocks) != nil || len(blocks) == 0 {
@@ -262,7 +262,7 @@ func activityOf(content json.RawMessage) (Activity, string) {
 	return Unknown, ""
 }
 
-// transcriptDir resolves the Claude Code transcript directory for a project
+// transcriptDir resolves the AI Agent transcript directory for a project
 // path, preferring the direct encoding and falling back to a one-time scan that
 // matches the `cwd` recorded inside transcripts. Callers hold c.mu.
 func (c *Collector) transcriptDir(path string) string {
@@ -303,7 +303,7 @@ func (c *Collector) scanForCwd(path string) string {
 	return ""
 }
 
-// encodePath mirrors Claude Code's transcript-directory naming: every '/' and
+// encodePath mirrors AI Agent's transcript-directory naming: every '/' and
 // '.' in the absolute path becomes '-'.
 func encodePath(path string) string {
 	return strings.NewReplacer("/", "-", ".", "-").Replace(path)
@@ -325,11 +325,28 @@ func friendlyModel(id string) string {
 	case strings.HasPrefix(id, "claude-fable-5"):
 		return "Fable 5"
 	}
-	// Unknown id: strip the vendor prefix so at least something readable shows.
-	return strings.TrimPrefix(id, "claude-")
+	// Unknown id: strip vendor prefix so synthetic/future models present cleanly.
+	if strings.HasPrefix(id, "claude-") {
+		return strings.TrimPrefix(id, "claude-")
+	}
+	return id
 }
 
 // --- small helpers ---------------------------------------------------------
+
+func sanitizeString(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r == 0x1b || r == 0x7f {
+			continue
+		}
+		if (r >= 0x00 && r <= 0x1f && r != '\n' && r != '\t') || (r >= 0x80 && r <= 0x9f) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
 
 func sum(m map[string]int) int {
 	total := 0

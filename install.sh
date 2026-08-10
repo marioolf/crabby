@@ -66,9 +66,9 @@ main() {
 	fi
 
 	if command -v claude >/dev/null 2>&1; then
-		ok "Claude Code found"
+		ok "AI Agent found"
 	else
-		warn "Claude Code not found — see https://claude.com/claude-code"
+		warn "AI Agent not found — see https://claude.com/claude-code"
 	fi
 
 	echo

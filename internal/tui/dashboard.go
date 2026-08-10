@@ -423,7 +423,7 @@ func (m model) workspaceColumn(w, h int) string {
 		selected := i == m.wsCursor
 		st, working := r.repr()
 		dot, dotStyle := glyph(st, working)
-		name := r.proj.Name
+		name := sanitizeRender(r.proj.Name)
 		nameR := nameStyle.Render(name)
 		if selected {
 			nameR = selNameStyle.Render(name)
@@ -489,9 +489,9 @@ func (m model) detailColumn(w, h int) string {
 	if ws.missing {
 		add("folder", errorStyle.Render("⚠ missing — moved or renamed (e to relink)"))
 	}
-	add("branch", ws.branch)
+	add("branch", sanitizeRender(ws.branch))
 	if ins.Model != "" {
-		add("model", ins.Model)
+		add("model", sanitizeRender(ins.Model))
 	}
 	if ins.SessionTokens > 0 {
 		add("tokens", formatTokens(ins.SessionTokens)+" session")
@@ -503,7 +503,7 @@ func (m model) detailColumn(w, h int) string {
 		add("uptime", formatDuration(tr.uptime))
 	}
 	if tr.working {
-		add("activity", workingActivity(ins))
+		add("activity", sanitizeRender(workingActivity(ins)))
 	}
 	if !ins.LastActivity.IsZero() {
 		add("last", formatAgo(time.Since(ins.LastActivity)))
@@ -548,7 +548,7 @@ func (m model) summaryLine() string {
 }
 
 // dashboardFooter shows the actions and the on-screen hint for returning from a
-// Claude session — the single, discoverable answer to "how do I get back?".
+// AI Agent session — the single, discoverable answer to "how do I get back?".
 func (m model) dashboardFooter() string {
 	line1 := strings.Join([]string{
 		actionKey("↑↓", "move"), actionKey("tab", "pane"),
